@@ -24,10 +24,10 @@
     .rg-check{width:44px;text-align:center;padding-left:0;padding-right:0;}
     .rg-check .fi-checkbox-input{vertical-align:middle;}
     .rg-selected td{background:var(--rg-hover);}
-    .rg-late td{background:rgba(185,28,28,.09);}
-    :where(.dark) .rg-late td{background:rgba(248,113,113,.10);}
-    .rg-late:hover td{background:rgba(185,28,28,.15);}
-    :where(.dark) .rg-late:hover td{background:rgba(248,113,113,.16);}
+    .rg-alert td{background:rgba(185,28,28,.09);}
+    :where(.dark) .rg-alert td{background:rgba(248,113,113,.10);}
+    .rg-alert:hover td{background:rgba(185,28,28,.15);}
+    :where(.dark) .rg-alert:hover td{background:rgba(248,113,113,.16);}
     .rg-end{text-align:right!important;}
     .rg-funnel{margin-left:1px;border:none;background:transparent;color:var(--rg-muted);cursor:pointer;padding:2px;
         border-radius:4px;vertical-align:middle;display:inline-flex;}
@@ -80,10 +80,6 @@
     .rg-act-danger:hover{color:var(--rg-neg);background:color-mix(in srgb,var(--rg-neg) 12%,transparent);}
     .rg-act-warning{color:#b45309;}
     .rg-act-warning:hover{color:#b45309;background:color-mix(in srgb,#b45309 12%,transparent);}
-    .rg-st-ok{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.3);color:var(--rg-pos);}
-    .rg-st-late{background:rgba(185,28,28,.12);border-color:rgba(185,28,28,.3);color:var(--rg-neg);}
-    .rg-st-wait{background:rgba(202,138,4,.14);border-color:rgba(202,138,4,.3);color:#a16207;}
-    :where(.dark) .rg-st-wait{color:#facc15;}
     .rg-footbar{background:var(--rg-head);color:var(--rg-fg);font-weight:600;font-size:13px;
         padding:10px 14px;border-top:1px solid var(--rg-line);}
     .rg-footbar b{font-variant-numeric:tabular-nums;color:var(--rg-primary);}

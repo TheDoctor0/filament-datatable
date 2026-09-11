@@ -61,10 +61,16 @@ export function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"]/g, (char) => HTML_ESCAPES[char]);
 }
 
-/** Locale number formatting (Polish), trimming to 2 decimals like the old grid. */
-export function formatNumber(value) {
+export const DEFAULT_LOCALE = 'en-US';
+
+/** Locale number formatting, trimmed to 2 decimals. */
+export function formatNumber(value, locale = DEFAULT_LOCALE) {
     const rounded = Math.round((Number(value) || 0) * 100) / 100;
-    return rounded.toLocaleString('pl-PL');
+    return rounded.toLocaleString(locale);
+}
+
+export function formatInteger(value, locale = DEFAULT_LOCALE) {
+    return Math.round(Number(value) || 0).toLocaleString(locale);
 }
 
 /** "2026-01-26T14:51:03" | "2026-01-26 14:51:03" → "2026-01-26 14:51" */
@@ -94,17 +100,13 @@ function normaliseDateTime(value) {
 
 /**
  * Does a row pass a single column filter? `kind` is the column's declared filter type.
- * Values shapes: select/status → array; num → {min,max}; datetime/date → {od,do}; text → string.
+ * Values shapes: select → array; num → {min,max}; datetime/date → {od,do}; text → string.
  */
-export function rowPassesColumnFilter(row, column, filterValue, statusOf) {
+export function rowPassesColumnFilter(row, column, filterValue) {
     if (filterValue == null) return true;
     const kind = column.filter;
     const cellValue = row[column.k];
 
-    if (kind === 'status') {
-        return !Array.isArray(filterValue) || filterValue.length === 0
-            || filterValue.includes(statusOf(row).code);
-    }
     if (kind === 'select') {
         return !Array.isArray(filterValue) || filterValue.length === 0
             || filterValue.includes(String(cellValue ?? ''));
@@ -145,6 +147,14 @@ export function makeRowComparator(sort, columnsByKey, collator) {
     };
 }
 
+/** Fixed scope applied before any user filter: `[{field, in: [...]}]`, all clauses must hold. */
+export function rowPassesPreFilter(row, preFilter) {
+    for (const clause of preFilter || []) {
+        if (Array.isArray(clause.in) && !clause.in.includes(row[clause.field])) return false;
+    }
+    return true;
+}
+
 /** Distinct, sorted, non-empty values of a field across rows — for select-filter options. */
 export function distinctValues(rows, field) {
     const seen = new Set();
@@ -164,10 +174,9 @@ export function distinctValues(rows, field) {
  * Best up to ~10–30k rows. `rowAt(i)` and `total()` are synchronous slices.
  */
 export class ClientRowSource {
-    constructor(config, statusOf) {
+    constructor(config) {
         this.config = config;
-        this.statusOf = statusOf;
-        this.collator = new Intl.Collator('pl');
+        this.collator = new Intl.Collator(config.locale || DEFAULT_LOCALE);
         this.allRows = [];
         this.viewRows = [];
     }
@@ -177,16 +186,10 @@ export class ClientRowSource {
     async load() {
         const response = await fetch(this.config.dataUrl, { headers: { Accept: 'application/json' } });
         let rows = await response.json();
-        rows = this.applyBaseScope(rows);
+        if (this.config.preFilter) rows = rows.filter((row) => rowPassesPreFilter(row, this.config.preFilter));
         for (const row of rows) row._search = buildSearchBlob(row, this.config.search || []);
         this.allRows = rows;
         this.viewRows = rows;
-    }
-
-    /** Optional fixed scope the grid always applies (e.g. only WZ/PZ documents). */
-    applyBaseScope(rows) {
-        const only = this.config.onlyTypy;
-        return only ? rows.filter((row) => only.includes(row.typ_dok)) : rows;
     }
 
     /** Recompute the filtered + sorted view. Returns the filtered row count. */
@@ -203,7 +206,7 @@ export class ClientRowSource {
             const value = columnFilters[key];
             const column = columnsByKey[key];
             if (value == null || !column) continue;
-            rows = rows.filter((row) => rowPassesColumnFilter(row, column, value, this.statusOf));
+            rows = rows.filter((row) => rowPassesColumnFilter(row, column, value));
         }
 
         if (sort.key) {
@@ -227,9 +230,8 @@ export class ClientRowSource {
  * it calls are added there. The grid talks to it through the exact same rowAt/total/setView API.
  */
 export class ServerRowSource {
-    constructor(config, statusOf) {
+    constructor(config) {
         this.config = config;
-        this.statusOf = statusOf;
         this.blockSize = config.blockSize || 200;
         this.blocks = new Map();     // blockIndex → row[]
         this.pending = new Set();    // blockIndexes being fetched
@@ -302,8 +304,8 @@ export class ServerRowSource {
     viewIds() { return null; }      // server mode: export re-runs the query server-side
 }
 
-export function makeRowSource(config, statusOf) {
-    return config.server ? new ServerRowSource(config, statusOf) : new ClientRowSource(config, statusOf);
+export function makeRowSource(config) {
+    return config.server ? new ServerRowSource(config) : new ClientRowSource(config);
 }
 
 /* ------------------------------------------------------------------ *
@@ -319,14 +321,15 @@ const CHEVRON_DOWN_ICON =
 
 const actionIconSvg = (path) =>
     `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
-const ACTION_ICONS = {
-    przeksieguj: actionIconSvg('<path d="M8.25 12h7.5m0 0-3-3m3 3-3 3"/><circle cx="12" cy="12" r="9"/>'),
-    wyksieguj: actionIconSvg('<path d="M15 12H9"/><circle cx="12" cy="12" r="9"/>'),
-    storno: actionIconSvg('<path d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>'),
-    historia: actionIconSvg('<path d="M12 6v6l4.5 2.5"/><circle cx="12" cy="12" r="9"/>'),
-    fvkwit: actionIconSvg('<path d="M16.5 3.5 20.5 7.5 8 20H4v-4z"/><path d="M13.5 6.5 17.5 10.5"/>'),
-    view: actionIconSvg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'),
-    card: actionIconSvg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'),
+/** Built-in row-action icons, referenced by `action.icon`. */
+export const ACTION_ICONS = {
+    'arrow-right-circle': actionIconSvg('<path d="M8.25 12h7.5m0 0-3-3m3 3-3 3"/><circle cx="12" cy="12" r="9"/>'),
+    'minus-circle': actionIconSvg('<path d="M15 12H9"/><circle cx="12" cy="12" r="9"/>'),
+    'arrow-uturn-left': actionIconSvg('<path d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>'),
+    clock: actionIconSvg('<path d="M12 6v6l4.5 2.5"/><circle cx="12" cy="12" r="9"/>'),
+    pencil: actionIconSvg('<path d="M16.5 3.5 20.5 7.5 8 20H4v-4z"/><path d="M13.5 6.5 17.5 10.5"/>'),
+    eye: actionIconSvg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'),
+    document: actionIconSvg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'),
 };
 
 /* ------------------------------------------------------------------ *
@@ -382,7 +385,8 @@ export default function datagrid(config) {
         rowActions: config.rowActions || null,
         rowUrl: config.rowUrl || null,   // optional ':id' template — clicking a row opens it
         actionsColumnWidth: config.actionsColumnWidth || 370,
-        markOverdue: config.markZalegle || false,
+        rowHighlight: config.rowHighlight || null,   // {field, class?} — truthy row[field] adds the class
+        locale: config.locale || DEFAULT_LOCALE,
         selectable: config.selectable || false,   // only show the checkbox column when bulk selection is used
         _distinctCache: {},
 
@@ -398,7 +402,7 @@ export default function datagrid(config) {
             this.restoreSharedSearch();
             this.recomputePoolSize();
             this.recomputeColumnWindow();   // bound the skeleton's columns to the viewport too
-            this.source = makeRowSource(this.config, (row) => this.statusOf(row));
+            this.source = makeRowSource(this.config);
             if (this.source.onWindowLoaded !== undefined) {
                 this.source.onWindowLoaded = () => this.refreshWindowRows();
             }
@@ -554,8 +558,6 @@ export default function datagrid(config) {
             if (column.type === 'num' || column.type === 'sign') return 110;
             if (column.type === 'datetime') return 150;
             if (column.type === 'date') return 110;
-            if (column.type === 'powod') return 200;
-            if (column.type === 'ruch') return 150;
             if (column.badge) return 120;
             if (column.edit) return 180;
             return 150;
@@ -676,15 +678,7 @@ export default function datagrid(config) {
             return this._distinctCache[field];
         },
         filterOptions(column) {
-            if (column.filter === 'status') {
-                return [{ value: 'ok', label: 'Potwierdzone' }, { value: 'late', label: 'Zaległe' }, { value: 'wait', label: 'Czeka' }];
-            }
-            return this.distinctFor(column.k).map((value) => ({ value, label: this.optionLabel(column, value) }));
-        },
-        optionLabel(column, value) {
-            if (column.type === 'powod') return (this.config.powody || {})[value] || value;
-            if (column.type === 'ruch') return (this.config.ruchy || {})[value] || value;
-            return value;
+            return this.distinctFor(column.k).map((value) => ({ value, label: valueLabel(column, value) }));
         },
         toggleFilterValue(key, value) {
             const values = this.columnFilters[key] ? [...this.columnFilters[key]] : [];
@@ -726,24 +720,10 @@ export default function datagrid(config) {
         },
         isRowSelected(id) { return this.selectedIds.includes(id); },
 
-        /* ------------------------- domain: status ------------------------- *
-         * NOTE: status/summary/action rules are still document-specific. They are the
-         * next thing to lift into config once the fluent PHP column API lands. */
-
-        overdueThresholdDate() {
-            const date = new Date();
-            date.setDate(date.getDate() - (this.config.prog || 14));
-            return date.toISOString().slice(0, 10);
+        rowHighlightClass(row) {
+            if (!row || !this.rowHighlight || !row[this.rowHighlight.field]) return '';
+            return this.rowHighlight.class || 'rg-alert';
         },
-        statusOf(row) {
-            if (!row) return { label: '', code: 'wait' };
-            if (row.data_potwierdzenia) return { label: 'Potwierdzone', code: 'ok' };
-            const wanted = String(row.zadana_data_dostawy ?? '').slice(0, 10);
-            const isShipment = row.typ_dok === 'WZ' || row.typ_dok === 'PZ';
-            if (isShipment && wanted && wanted < this.overdueThresholdDate()) return { label: 'Zaległe', code: 'late' };
-            return { label: 'Czeka', code: 'wait' };
-        },
-        rowIsOverdue(row) { return this.markOverdue && this.statusOf(row).code === 'late'; },
 
         /* ------------------------- cell rendering (cached) ------------------------- */
 
@@ -755,22 +735,16 @@ export default function datagrid(config) {
         },
         computeCell(row, column) {
             const raw = row[column.k];
-            if (column.type === 'status') {
-                const status = this.statusOf(row);
-                return { text: status.label, cls: `rg-badge rg-st-${status.code}`, title: '' };
-            }
             if (column.type === 'datetime') return { text: formatDateTime(raw), cls: '', title: '' };
             if (column.type === 'date') return { text: formatDate(raw), cls: '', title: '' };
-            if (column.type === 'num') return { text: formatNumber(raw), cls: '', title: '' };
+            if (column.type === 'num') return { text: formatNumber(raw, this.locale), cls: '', title: '' };
             if (column.type === 'sign') {
                 const n = Number(raw) || 0;
-                return { text: formatNumber(n), cls: n < 0 ? 'rg-neg' : n > 0 ? 'rg-pos' : '', title: '' };
+                return { text: formatNumber(n, this.locale), cls: n < 0 ? 'rg-neg' : n > 0 ? 'rg-pos' : '', title: '' };
             }
-            let value = raw;
-            if (column.type === 'powod') value = (this.config.powody || {})[value] || value;
-            if (column.type === 'ruch') value = (this.config.ruchy || {})[value] || value;
+            const value = valueLabel(column, raw);
             if (column.badge && value) {
-                const color = (column.badgeColors && column.badgeColors[value]) || column.badgeColor || 'info';
+                const color = (column.badgeColors && column.badgeColors[raw]) || column.badgeColor || 'info';
                 return { text: String(value), cls: `rg-badge rg-c-${color}`, title: String(raw ?? '') };
             }
             return { text: String(value ?? ''), cls: '', title: '' };
@@ -804,41 +778,35 @@ export default function datagrid(config) {
             return this.rowActions.filter((action) => this.actionIsVisible(action, row));
         },
         actionIsVisible(action, row) {
-            if (action.when === 'saldo') return Math.abs(Number(row.saldo) || 0) > 0.0001;
-            if (action.when === 'storno') return !!row.ruch_typ && !row.storno_id;
-            if (action.when === 'wzpz') return row.typ_dok === 'WZ' || row.typ_dok === 'PZ';
-            return true;
+            return action.when ? !!row[action.when] : true;
         },
-        actionIcon(name) { return ACTION_ICONS[name] || ''; },
+        actionIcon(action) { return ACTION_ICONS[action.icon] || ''; },
         mountAction(name, id) { if (this.$wire) this.$wire.mountAction(name, { record: id }); },
 
         /* ------------------------- summary bar ------------------------- */
 
+        /** `config.summary`: `[{key, label, agg: 'count'|'sum', format: 'number'|'int'}]`. */
         summaryHtml() {
-            const fields = this.config.summaryFields || ['rekordy', 'saldo', 'wyslane', 'zalegle'];
-            const labels = { rekordy: 'Rekordów', saldo: 'Saldo', wyslane: 'Wysłane', zalegle: 'Zaległe' };
-            let values;
-            if (this.loading) {
-                // Render the labels immediately with placeholders; fill in once the data arrives.
-                values = { rekordy: '–', saldo: '–', wyslane: '–', zalegle: '–' };
-            } else {
-                let saldoSum = 0;
-                let sentSum = 0;
-                let overdueCount = 0;
-                for (const row of this.iterateViewRows()) {
-                    saldoSum += Number(row.saldo) || 0;
-                    sentSum += Number(row.ilosc) || 0;
-                    if (this.statusOf(row).code === 'late') overdueCount += 1;
+            const items = this.config.summary || [];
+            const sums = {};
+            if (!this.loading) {
+                const sumKeys = items.filter((item) => item.agg === 'sum').map((item) => item.key);
+                for (const key of sumKeys) sums[key] = 0;
+                if (sumKeys.length > 0) {
+                    for (const row of this.iterateViewRows()) {
+                        for (const key of sumKeys) sums[key] += Number(row[key]) || 0;
+                    }
                 }
-                values = {
-                    rekordy: this.filteredCount.toLocaleString('pl-PL'),
-                    saldo: formatNumber(saldoSum),
-                    wyslane: formatNumber(sentSum),
-                    zalegle: overdueCount.toLocaleString('pl-PL'),
-                };
             }
             const separator = '<span class="rg-sep">·</span>';
-            return fields.map((field) => `${labels[field]}: <b>${values[field]}</b>`).join(separator);
+            return items.map((item) => `${escapeHtml(item.label)}: <b>${this.summaryValue(item, sums)}</b>`).join(separator);
+        },
+        summaryValue(item, sums) {
+            if (this.loading) return '–';
+            const value = item.agg === 'count' ? this.filteredCount : sums[item.key];
+            return item.format === 'int' || item.agg === 'count'
+                ? formatInteger(value, this.locale)
+                : formatNumber(value, this.locale);
         },
         /** Iterate the current filtered view (client mode has every row; server mode has the window). */
         *iterateViewRows() {
@@ -852,7 +820,12 @@ export default function datagrid(config) {
         /* ------------------------- export ------------------------- */
 
         exportFile(extension) {
-            const columns = this.visibleColumns.map((column) => ({ key: column.k, label: column.t }));
+            const withLabels = !!this.config.exportLabels;
+            const columns = this.visibleColumns.map((column) => ({
+                key: column.k,
+                label: column.t,
+                ...(withLabels && column.valueLabels ? { valueLabels: column.valueLabels } : {}),
+            }));
             const ids = this.source.viewIds();
             fetch(this.config.exportUrl + '.' + extension, {
                 method: 'POST',
@@ -885,3 +858,9 @@ export default function datagrid(config) {
 }
 
 const EMPTY_CELL = { text: '', cls: '', title: '' };
+
+/** Display text for a raw cell value: `column.valueLabels[raw]` when mapped, else the raw value. */
+function valueLabel(column, raw) {
+    if (column.valueLabels && raw != null && column.valueLabels[raw] != null) return column.valueLabels[raw];
+    return raw;
+}

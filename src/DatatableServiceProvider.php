@@ -15,6 +15,7 @@ class DatatableServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'filament-datatable');
+        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'filament-datatable');
 
         FilamentAsset::register([
             AlpineComponent::make('datagrid', __DIR__.'/../resources/js/datagrid.js'),
@@ -23,5 +24,9 @@ class DatatableServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../resources/views' => resource_path('views/vendor/filament-datatable'),
         ], 'filament-datatable-views');
+
+        $this->publishes([
+            __DIR__.'/../resources/lang' => $this->app->langPath('vendor/filament-datatable'),
+        ], 'filament-datatable-translations');
     }
 }
