@@ -2,7 +2,7 @@
 
 <div
     x-load
-    x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('datagrid') }}"
+    x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('datagrid', \TheDoctor0\FilamentDatatable\DatatableServiceProvider::PACKAGE) }}"
     x-data="datagrid(@js($config))"
     x-on:rg-export.window="exportFile($event.detail.format)"
     x-on:rg-refresh.window="reload()"
