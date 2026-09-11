@@ -40,10 +40,10 @@
     .rg-spacer{padding:0!important;} /* off-viewport column spacers (column virtualization) */
     .rg-mono{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;}
     /* Editable cells: compact so the row keeps the same 42px height as the other grids. */
-    .rg-edit{overflow:hidden;padding:0 6px;}
-    .rg-edit .fi-ta-text-input{padding:0;}
-    .rg-edit .fi-input-wrp{min-height:0;height:30px;width:100%;max-width:100%;}
-    .rg-edit .fi-input{width:100%;min-width:0;height:30px;padding:2px 8px;font-size:13px;line-height:1.2;}
+    .rg-edit{overflow:visible;padding:0 6px;}
+    .rg-edit .fi-ta-text-input{padding:0;display:flex;align-items:center;height:42px;}
+    .rg-edit .fi-input-wrp{min-height:0!important;height:30px!important;width:100%;max-width:100%;}
+    .rg-edit .fi-input{width:100%;min-width:0;height:30px!important;padding:2px 8px;font-size:13px;line-height:1.2;}
     .rg-bold{font-weight:700;}
     .rg-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11.5px;font-weight:600;
         background:var(--rg-hover);border:1px solid var(--rg-line);white-space:nowrap;}
@@ -78,6 +78,8 @@
     .rg-act-gray{color:var(--rg-muted);}
     .rg-act-danger{color:var(--rg-neg);}
     .rg-act-danger:hover{color:var(--rg-neg);background:color-mix(in srgb,var(--rg-neg) 12%,transparent);}
+    .rg-act-warning{color:#b45309;}
+    .rg-act-warning:hover{color:#b45309;background:color-mix(in srgb,#b45309 12%,transparent);}
     .rg-st-ok{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.3);color:var(--rg-pos);}
     .rg-st-late{background:rgba(185,28,28,.12);border-color:rgba(185,28,28,.3);color:var(--rg-neg);}
     .rg-st-wait{background:rgba(202,138,4,.14);border-color:rgba(202,138,4,.3);color:#a16207;}
