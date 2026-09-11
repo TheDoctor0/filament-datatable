@@ -1,0 +1,27 @@
+{
+    "name": "thedoctor0/filament-datatable",
+    "description": "Reusable virtual-scroll data grid (Alpine) for Filament, with client/server row sources, column picker, filters and CSV/XLSX export.",
+    "license": "MIT",
+    "keywords": ["filament", "laravel", "datatable", "datagrid", "alpine", "virtual-scroll"],
+    "require": {
+        "php": "^8.2",
+        "filament/support": "^3.0 || ^4.0",
+        "illuminate/http": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/support": "^11.0 || ^12.0 || ^13.0",
+        "openspout/openspout": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "TheDoctor0\\FilamentDatatable\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "TheDoctor0\\FilamentDatatable\\DatatableServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
