@@ -389,6 +389,8 @@ export default function datagrid(config) {
         locale: config.locale || DEFAULT_LOCALE,
         selectable: config.selectable || false,   // only show the checkbox column when bulk selection is used
         _distinctCache: {},
+        serverSummary: null,      // {count, sums} — tryb serwerowy
+        _serverOptions: {},       // field → distinct values (tryb serwerowy)
 
         openRow(row) {
             if (row && this.rowUrl) window.location.href = this.rowUrl.replace(':id', row.id);
@@ -425,19 +427,37 @@ export default function datagrid(config) {
 
         /* ------------------------- view pipeline ------------------------- */
 
-        /** Recompute filter+sort (in the source), then reset the window to the top. */
+        /**
+         * Recompute filter+sort (in the source), then reset the window to the top.
+         * setView is sync in client mode and async in server mode — Promise.resolve
+         * unifies both, so the window/summary refresh once the (possibly remote) view lands.
+         */
         applyView() {
             this.persistSharedSearch();
-            this.filteredCount = this.source.setView({
+            Promise.resolve(this.source.setView({
                 searchQuery: this.searchQuery,
                 columnFilters: this.columnFilters,
                 sort: this.sort,
+            })).then((count) => {
+                this.filteredCount = count;
+                this.firstIndex = 0;
+                if (this.$refs.scroller) this.$refs.scroller.scrollTop = 0;
+                this.recomputePoolSize();
+                this.recomputeColumnWindow();
+                this.recomputePadding();
+                this.refreshWindowRows();
+                if (this.config.server) this.loadServerSummary();
             });
-            this.recomputePoolSize();
-            this.recomputeColumnWindow();
-            this.firstIndex = 0;
-            if (this.$refs.scroller) this.$refs.scroller.scrollTop = 0;
-            this.recomputePadding();
+        },
+
+        /** Tryb serwerowy: podsumowanie liczone w backendzie nad bieżącymi filtrami. */
+        loadServerSummary() {
+            if (!this.config.summaryUrl) return;
+            fetch(this.config.summaryUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.config.csrf },
+                body: JSON.stringify({ search: this.searchQuery, filters: this.columnFilters }),
+            }).then((r) => r.json()).then((data) => { this.serverSummary = data; });
         },
 
         /** The fixed-length array the template iterates; slot i shows row (firstIndex + i). */
@@ -669,8 +689,17 @@ export default function datagrid(config) {
             this.filterColumn = column;
             const rect = event.currentTarget.getBoundingClientRect();
             this.filterStyle = `top:${rect.bottom + 4}px;left:${Math.max(8, rect.left - 40)}px`;
+            if (this.config.server && column.filter === 'select') this.fetchServerOptions(column.k);
+        },
+        /** Tryb serwerowy: opcje filtra select pobierane leniwie z backendu. */
+        fetchServerOptions(field) {
+            if (this._serverOptions[field] || !this.config.optionsUrl) return;
+            fetch(this.config.optionsUrl + '?col=' + encodeURIComponent(field), { headers: { Accept: 'application/json' } })
+                .then((r) => r.json())
+                .then((data) => { this._serverOptions = { ...this._serverOptions, [field]: data.values || [] }; });
         },
         distinctFor(field) {
+            if (this.config.server) return this._serverOptions[field] || [];
             if (!this._distinctCache[field]) {
                 const rows = this.source.loadedRows() || [];
                 this._distinctCache[field] = distinctValues(rows, field);
@@ -789,7 +818,8 @@ export default function datagrid(config) {
         summaryHtml() {
             const items = this.config.summary || [];
             const sums = {};
-            if (!this.loading) {
+            // Client mode sums the in-memory rows; server mode gets aggregates from the backend.
+            if (!this.loading && !this.config.server) {
                 const sumKeys = items.filter((item) => item.agg === 'sum').map((item) => item.key);
                 for (const key of sumKeys) sums[key] = 0;
                 if (sumKeys.length > 0) {
@@ -803,7 +833,13 @@ export default function datagrid(config) {
         },
         summaryValue(item, sums) {
             if (this.loading) return '–';
-            const value = item.agg === 'count' ? this.filteredCount : sums[item.key];
+            let value;
+            if (this.config.server) {
+                if (!this.serverSummary) return '–';
+                value = item.agg === 'count' ? this.serverSummary.count : (this.serverSummary.sums?.[item.key] ?? 0);
+            } else {
+                value = item.agg === 'count' ? this.filteredCount : sums[item.key];
+            }
             return item.format === 'int' || item.agg === 'count'
                 ? formatInteger(value, this.locale)
                 : formatNumber(value, this.locale);
@@ -826,11 +862,14 @@ export default function datagrid(config) {
                 label: column.t,
                 ...(withLabels && column.valueLabels ? { valueLabels: column.valueLabels } : {}),
             }));
-            const ids = this.source.viewIds();
+            // Server mode: no client-side id list — the backend re-runs the filtered query.
+            const body = this.config.server
+                ? { server: 1, columns, search: this.searchQuery, filters: this.columnFilters, sort: this.sort }
+                : { ids: this.source.viewIds(), columns };
             fetch(this.config.exportUrl + '.' + extension, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.config.csrf },
-                body: JSON.stringify({ ids, columns }),
+                body: JSON.stringify(body),
             })
                 .then((response) => response.blob())
                 .then((blob) => {
