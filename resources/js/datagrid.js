@@ -409,10 +409,22 @@ export default function datagrid(config) {
                 this.source.onWindowLoaded = () => this.refreshWindowRows();
             }
             this.attachScrollListener();
-            await this.source.load();
+            if (this.source.mode === 'client') {
+                await this.source.load();
+            }
+            // Zastosuj początkowe sortowanie/filtry i policz wiersze ZANIM zdejmiemy
+            // loading — inaczej między hydracją a nadejściem danych mignąłby pusty stan.
+            this.filteredCount = await Promise.resolve(this.source.setView({
+                searchQuery: this.searchQuery,
+                columnFilters: this.columnFilters,
+                sort: this.sort,
+            }));
             this.computeContentWidths();
+            if (this.config.server) this.loadServerSummary();
+            this.recomputeColumnWindow();
+            this.recomputePadding();
+            this.refreshWindowRows();
             this.loading = false;
-            this.applyView();
         },
 
         /** Placeholder bar width for a skeleton cell — a fraction of the column width. */
