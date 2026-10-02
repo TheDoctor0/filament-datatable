@@ -355,6 +355,10 @@ export default function datagrid(config) {
         columnFilters: {},
         sort: config.sort || { key: null, dir: 'asc' },
         selectedIds: [],
+        allFiltered: false,       // bulk: „zaznacz wszystko" = cały przefiltrowany zbiór (tryb serwerowy)
+        bulkOpen: false,          // widoczność formularza akcji masowej
+        bulkValues: {},           // wartości pól akcji masowej (np. {numer_fv, kwit_paletowy})
+        bulkBusy: false,
 
         // ---- columns (visibility + order, persisted) ----
         columnOrder: (config.columns || []).map((column) => column.k),
@@ -387,7 +391,10 @@ export default function datagrid(config) {
         actionsColumnWidth: config.actionsColumnWidth || 370,
         rowHighlight: config.rowHighlight || null,   // {field, class?} — truthy row[field] adds the class
         locale: config.locale || DEFAULT_LOCALE,
-        selectable: config.selectable || false,   // only show the checkbox column when bulk selection is used
+        selectable: config.selectable || !!config.bulkUrl,   // checkbox column shown for explicit selection or any bulk action
+        bulkUrl: config.bulkUrl || null,      // POST endpoint dla akcji masowej (FV/kwit)
+        bulkFields: config.bulkFields || [],  // [{key,label,placeholder?}] — pola formularza masowego
+        bulkLabel: config.bulkLabel || null,  // etykieta przycisku akcji masowej
         _distinctCache: {},
         serverSummary: null,      // {count, sums} — tryb serwerowy
         _serverOptions: {},       // field → distinct values (tryb serwerowy)
@@ -748,18 +755,69 @@ export default function datagrid(config) {
 
         allSelected() {
             const total = this.source.total();
+            if (this.allFiltered) return total > 0;
             return total > 0 && this.selectedIds.length >= total;
         },
+        /**
+         * Nagłówkowy „zaznacz wszystko". W trybie klienta wybieramy konkretne id widoku.
+         * W trybie serwerowym nie znamy wszystkich id (ładujemy blokami) — ustawiamy flagę
+         * allFiltered, którą backend tłumaczy na „cały przefiltrowany zbiór".
+         */
         toggleSelectAll() {
+            if (this.allSelected()) { this.clearSelection(); return; }
             const ids = this.source.viewIds();
-            this.selectedIds = this.allSelected() || !ids ? [] : ids;
+            if (ids) { this.selectedIds = ids; this.allFiltered = false; }
+            else { this.allFiltered = true; this.selectedIds = []; }   // tryb serwerowy
         },
         toggleRowSelection(id) {
+            if (this.allFiltered) return;   // przy „wszystko przefiltrowane" pojedyncze wiersze są zablokowane
             const index = this.selectedIds.indexOf(id);
             if (index >= 0) this.selectedIds.splice(index, 1);
             else this.selectedIds.push(id);
         },
-        isRowSelected(id) { return this.selectedIds.includes(id); },
+        isRowSelected(id) { return this.allFiltered || this.selectedIds.includes(id); },
+
+        /* ------------------------- akcja masowa ------------------------- */
+
+        selectionCount() {
+            return this.allFiltered ? this.source.total() : this.selectedIds.length;
+        },
+        hasSelection() { return this.selectionCount() > 0; },
+        clearSelection() { this.selectedIds = []; this.allFiltered = false; this.bulkOpen = false; },
+        openBulk() {
+            this.bulkValues = Object.fromEntries((this.bulkFields || []).map((f) => [f.key, '']));
+            this.bulkOpen = true;
+        },
+        async applyBulk() {
+            if (this.bulkBusy || !this.bulkUrl) return;
+            const fields = {};
+            for (const f of this.bulkFields) {
+                const v = (this.bulkValues[f.key] ?? '').trim();
+                if (v !== '') fields[f.key] = v;
+            }
+            if (Object.keys(fields).length === 0) return;   // nic do zapisania
+            this.bulkBusy = true;
+            try {
+                const response = await fetch(this.bulkUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.config.csrf },
+                    body: JSON.stringify({
+                        fields,
+                        all: this.allFiltered,
+                        ids: this.allFiltered ? [] : this.selectedIds,
+                        search: this.searchQuery || '',
+                        filters: this.columnFilters || {},
+                    }),
+                });
+                if (!response.ok) throw new Error('bulk failed');
+                this.clearSelection();
+                await this.reload();
+            } catch (error) {
+                console.error('[datagrid] bulk action failed', error);
+            } finally {
+                this.bulkBusy = false;
+            }
+        },
 
         rowHighlightClass(row) {
             if (!row || !this.rowHighlight || !row[this.rowHighlight.field]) return '';
@@ -903,6 +961,7 @@ export default function datagrid(config) {
             this.computeContentWidths();
             this._distinctCache = {};
             this.selectedIds = [];
+            this.allFiltered = false;
             this.applyView();
         },
     };

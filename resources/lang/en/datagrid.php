@@ -17,4 +17,10 @@ return [
     'to' => 'to',
     'clear' => 'Clear',
     'apply' => 'Apply',
+    'bulk_selected' => 'selected',
+    'bulk_all_filtered' => '(all filtered)',
+    'bulk_assign' => 'Assign',
+    'bulk_apply' => 'Save',
+    'bulk_cancel' => 'Cancel',
+    'bulk_clear' => 'Deselect',
 ];

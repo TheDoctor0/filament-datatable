@@ -7,6 +7,13 @@
     .rg-card{border:1px solid var(--rg-line);border-radius:12px;overflow:hidden;background:var(--rg-bg);}
     .rg-toolbar{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--rg-line);}
     .rg-search-wrp{max-width:24rem;}
+    .rg-bulkbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--rg-line);
+        background:color-mix(in srgb,var(--rg-primary) 8%,transparent);}
+    .rg-bulk-count{font-size:13px;font-weight:600;color:var(--rg-fg);}
+    .rg-bulk-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto;}
+    .rg-bulk-form{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+    .rg-bulk-input{height:32px;min-width:150px;padding:2px 8px;font-size:13px;}
+    .rg-actbtn:disabled{opacity:.5;cursor:default;}
     .rg-dd{position:relative;margin-left:auto;}
     .rg-colsbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rg-line);background:var(--rg-bg);
         color:var(--rg-fg);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1.3;}

@@ -50,6 +50,39 @@
             </div>
         </div>
 
+        {{-- Pasek akcji masowej — widoczny gdy coś zaznaczono (tryb z bulkUrl) --}}
+        <template x-if="bulkUrl">
+            <div class="rg-bulkbar" x-show="hasSelection()" x-cloak>
+                <span class="rg-bulk-count">
+                    <span x-text="selectionCount()"></span>
+                    <span x-show="allFiltered" x-text="' {{ __('filament-datatable::datagrid.bulk_all_filtered') }}'"></span>
+                    {{ __('filament-datatable::datagrid.bulk_selected') }}
+                </span>
+                <div class="rg-bulk-actions">
+                    <button type="button" class="rg-actbtn rg-act-primary" @click="openBulk()" x-show="!bulkOpen">
+                        <span x-text="bulkLabel || '{{ __('filament-datatable::datagrid.bulk_assign') }}'"></span>
+                    </button>
+                    <template x-if="bulkOpen">
+                        <div class="rg-bulk-form">
+                            <template x-for="field in bulkFields" :key="field.key">
+                                <input type="text" class="fi-input rg-bulk-input" :placeholder="field.placeholder || field.label"
+                                       :aria-label="field.label" x-model="bulkValues[field.key]" @keydown.enter="applyBulk()">
+                            </template>
+                            <button type="button" class="rg-actbtn rg-act-primary" @click="applyBulk()" :disabled="bulkBusy">
+                                {{ __('filament-datatable::datagrid.bulk_apply') }}
+                            </button>
+                            <button type="button" class="rg-actbtn rg-act-gray" @click="bulkOpen = false">
+                                {{ __('filament-datatable::datagrid.bulk_cancel') }}
+                            </button>
+                        </div>
+                    </template>
+                    <button type="button" class="rg-actbtn rg-act-gray" @click="clearSelection()">
+                        {{ __('filament-datatable::datagrid.bulk_clear') }}
+                    </button>
+                </div>
+            </div>
+        </template>
+
         {{-- Virtual-scroll table --}}
         <div class="rg-wrap" x-ref="scroller">
             {{-- Generic skeleton for the brief moment before the component hydrates (no columns yet). --}}
@@ -116,7 +149,7 @@
                             :class="[row && isRowSelected(row.id) && 'rg-selected', rowHighlightClass(row)]">
                             <template x-if="selectable">
                                 <td class="rg-td rg-check">
-                                    <input type="checkbox" class="fi-checkbox-input" :checked="row && isRowSelected(row.id)" @change="row && toggleRowSelection(row.id)">
+                                    <input type="checkbox" class="fi-checkbox-input" :checked="row && isRowSelected(row.id)" :disabled="allFiltered" @change="row && toggleRowSelection(row.id)">
                                 </td>
                             </template>
                             <td class="rg-td rg-spacer"></td>

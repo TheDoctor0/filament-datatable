@@ -17,4 +17,10 @@ return [
     'to' => 'do',
     'clear' => 'Wyczyść',
     'apply' => 'Zastosuj',
+    'bulk_selected' => 'zaznaczonych',
+    'bulk_all_filtered' => '(wszystkie przefiltrowane)',
+    'bulk_assign' => 'Przypisz',
+    'bulk_apply' => 'Zapisz',
+    'bulk_cancel' => 'Anuluj',
+    'bulk_clear' => 'Odznacz',
 ];
