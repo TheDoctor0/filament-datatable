@@ -726,7 +726,10 @@ export default function datagrid(config) {
             return this._distinctCache[field];
         },
         filterOptions(column) {
-            return this.distinctFor(column.k).map((value) => ({ value, label: valueLabel(column, value) }));
+            // Backend może zwrócić skalary lub obiekty {value,label} (np. sentinel „(puste)").
+            return this.distinctFor(column.k).map((item) => (item && typeof item === 'object')
+                ? { value: item.value, label: item.label ?? valueLabel(column, item.value) }
+                : { value: item, label: valueLabel(column, item) });
         },
         toggleFilterValue(key, value) {
             const values = this.columnFilters[key] ? [...this.columnFilters[key]] : [];
