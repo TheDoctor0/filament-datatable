@@ -237,6 +237,7 @@ export class ServerRowSource {
         this.pending = new Set();    // blockIndexes being fetched
         this.filteredTotal = 0;
         this.draw = 0;
+        this.generation = 0;         // bumped on each setView; stale responses are dropped
         this.query = { searchQuery: '', columnFilters: {}, sort: {} };
         this.onWindowLoaded = () => {};
     }
@@ -249,9 +250,13 @@ export class ServerRowSource {
 
     async setView(query) {
         this.query = query;
+        const gen = ++this.generation;
         this.blocks.clear();
         this.pending.clear();
         const payload = await this.request(0, this.blockSize);
+        // View changed while this request was in flight — drop it so a slow, stale
+        // response can never clobber block 0 (the blank-top-rows bug).
+        if (gen !== this.generation) return this.filteredTotal;
         this.filteredTotal = payload.filtered;
         this.blocks.set(0, payload.rows);
         return this.filteredTotal;
@@ -267,8 +272,11 @@ export class ServerRowSource {
 
     ensureBlock(blockIndex) {
         if (this.blocks.has(blockIndex) || this.pending.has(blockIndex)) return;
+        const gen = this.generation;
         this.pending.add(blockIndex);
         this.request(blockIndex * this.blockSize, this.blockSize).then((payload) => {
+            // Belongs to a superseded view — discard (do not write stale rows).
+            if (gen !== this.generation) return;
             this.pending.delete(blockIndex);
             this.filteredTotal = payload.filtered;
             this.blocks.set(blockIndex, payload.rows);
@@ -293,8 +301,8 @@ export class ServerRowSource {
             body: JSON.stringify(body),
         });
         const data = await response.json();
-        // Ignore out-of-order responses (the classic DataTables `draw` guard).
-        if (data.draw < this.draw && start === 0) return { rows: [], filtered: this.filteredTotal };
+        // Staleness is handled by the generation token in setView/ensureBlock, which
+        // drops the whole response — so rows are always returned as-is here.
         for (const row of data.rows) row._search = '';
         return { rows: data.rows, filtered: data.recordsFiltered };
     }
