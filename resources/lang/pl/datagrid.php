@@ -17,6 +17,7 @@ return [
     'to' => 'do',
     'clear' => 'Wyczyść',
     'apply' => 'Zastosuj',
+    'clear_all_filters' => 'Wyczyść wszystkie filtry',
     'bulk_selected' => 'zaznaczonych',
     'bulk_all_filtered' => '(wszystkie przefiltrowane)',
     'bulk_assign' => 'Przypisz',

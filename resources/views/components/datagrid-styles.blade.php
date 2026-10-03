@@ -19,6 +19,12 @@
         color:var(--rg-fg);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1.3;}
     .rg-colsbtn:hover{background:var(--rg-hover);border-color:var(--rg-primary);color:var(--rg-primary);}
     .rg-colsbtn svg{width:16px;height:16px;}
+    .rg-filterbadge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rg-primary);
+        background:color-mix(in srgb, var(--rg-primary) 12%, var(--rg-bg));color:var(--rg-primary);
+        border-radius:999px;padding:5px 11px;font-size:13px;font-weight:700;cursor:pointer;line-height:1.3;}
+    .rg-filterbadge:hover{background:color-mix(in srgb, var(--rg-primary) 20%, var(--rg-bg));}
+    .rg-filterbadge .rg-filterbadge-x{opacity:.65;}
+    .rg-filterbadge:hover .rg-filterbadge-x{opacity:1;}
     .rg-wrap{overflow:auto;height:calc(100vh - 300px);background:var(--rg-bg);}
     .rg-table{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13.5px;color:var(--rg-fg);}
     .rg-table thead th{position:sticky;top:0;z-index:2;background:var(--rg-head);color:var(--rg-muted);font-weight:600;

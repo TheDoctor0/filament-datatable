@@ -17,6 +17,7 @@ return [
     'to' => 'to',
     'clear' => 'Clear',
     'apply' => 'Apply',
+    'clear_all_filters' => 'Clear all filters',
     'bulk_selected' => 'selected',
     'bulk_all_filtered' => '(all filtered)',
     'bulk_assign' => 'Assign',

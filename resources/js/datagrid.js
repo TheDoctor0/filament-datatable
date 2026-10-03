@@ -361,6 +361,7 @@ export default function datagrid(config) {
         // ---- view state ----
         searchQuery: '',
         columnFilters: {},
+        filterDraft: {},          // robocza kopia filtra dla aktualnie otwartej kolumny
         sort: config.sort || { key: null, dir: 'asc' },
         selectedIds: [],
         allFiltered: false,       // bulk: „zaznacz wszystko" = cały przefiltrowany zbiór (tryb serwerowy)
@@ -714,6 +715,9 @@ export default function datagrid(config) {
             if (this.filterColumn && this.filterColumn.k === column.k) { this.filterColumn = null; return; }
             this.filterOptionSearch = '';
             this.filterColumn = column;
+            // Seed draft z zatwierdzonej wartości (głęboka kopia), bez dotykania columnFilters.
+            const current = this.columnFilters[column.k];
+            this.filterDraft = { [column.k]: current == null ? null : JSON.parse(JSON.stringify(current)) };
             const rect = event.currentTarget.getBoundingClientRect();
             this.filterStyle = `top:${rect.bottom + 4}px;left:${Math.max(8, rect.left - 40)}px`;
             if (this.config.server && column.filter === 'select') this.fetchServerOptions(column.k);
@@ -739,28 +743,64 @@ export default function datagrid(config) {
                 ? { value: item.value, label: item.label ?? valueLabel(column, item.value) }
                 : { value: item, label: valueLabel(column, item) });
         },
+        // Filtry są ODROCZONE: edycja trafia do draftu dla otwartej kolumny,
+        // a widok odświeża się dopiero po „Zastosuj" (applyFilter). Zamknięcie
+        // popovera bez „Zastosuj" (klik poza / Escape) porzuca draft.
         toggleFilterValue(key, value) {
-            const values = this.columnFilters[key] ? [...this.columnFilters[key]] : [];
+            const values = Array.isArray(this.filterDraft[key]) ? [...this.filterDraft[key]] : [];
             const index = values.indexOf(value);
             if (index >= 0) values.splice(index, 1);
             else values.push(value);
-            this.columnFilters[key] = values;
-            this.applyView();
+            this.filterDraft[key] = values;
         },
-        setTextFilter(key, value) { this.columnFilters[key] = value || null; this.applyView(); },
+        setTextFilter(key, value) { this.filterDraft[key] = value || null; },
         setRangeBound(key, bound, value) {
-            const range = { ...(this.columnFilters[key] || {}) };
+            const range = { ...(this.filterDraft[key] || {}) };
             range[bound] = value || null;
-            this.columnFilters[key] = range;
-            this.applyView();
+            this.filterDraft[key] = range;
         },
         setNumberBound(key, bound, value) {
-            const range = { ...(this.columnFilters[key] || {}) };
+            const range = { ...(this.filterDraft[key] || {}) };
             range[bound] = value === '' ? null : value;
-            this.columnFilters[key] = range;
+            this.filterDraft[key] = range;
+        },
+
+        /** Czy wartość filtra jest „pusta" (nic nie zawęża). */
+        filterValueEmpty(value) {
+            if (value == null) return true;
+            if (Array.isArray(value)) return value.length === 0;
+            if (typeof value === 'object') return !Object.values(value).some((v) => v !== '' && v != null);
+            return value === '';
+        },
+
+        /** „Zastosuj": zatwierdź draft otwartej kolumny i odśwież widok. */
+        applyFilter(key) {
+            const value = this.filterDraft[key];
+            if (this.filterValueEmpty(value)) delete this.columnFilters[key];
+            else this.columnFilters[key] = value;
+            this.filterColumn = null;
             this.applyView();
         },
-        clearFilter(key) { delete this.columnFilters[key]; this.filterColumn = null; this.applyView(); },
+
+        clearFilter(key) {
+            delete this.columnFilters[key];
+            delete this.filterDraft[key];
+            this.filterColumn = null;
+            this.applyView();
+        },
+
+        /** Liczba aktywnych filtrów kolumn — do badge w pasku narzędzi. */
+        activeFilterCount() {
+            return Object.keys(this.columnFilters).filter((k) => !this.filterValueEmpty(this.columnFilters[k])).length;
+        },
+
+        /** Wyczyść wszystkie filtry kolumn naraz. */
+        clearAllFilters() {
+            this.columnFilters = {};
+            this.filterDraft = {};
+            this.filterColumn = null;
+            this.applyView();
+        },
 
         /* ------------------------- selection ------------------------- */
 

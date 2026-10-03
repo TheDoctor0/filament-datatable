@@ -23,6 +23,13 @@
                 </div>
             </div>
 
+            <button type="button" class="rg-filterbadge" x-show="activeFilterCount() > 0" x-cloak
+                    @click="clearAllFilters()" :title="'{{ __('filament-datatable::datagrid.clear_all_filters') }}'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z"/></svg>
+                <span x-text="activeFilterCount()"></span>
+                <svg class="rg-filterbadge-x" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+
             <div class="rg-dd" @click.outside="columnMenuOpen = false">
                 <button type="button" class="rg-colsbtn" title="{{ __('filament-datatable::datagrid.choose_columns') }}" @click="columnMenuOpen = !columnMenuOpen">
                     <svg class="fi-icon fi-size-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -217,7 +224,7 @@
                 <div class="ls-opts">
                     <template x-for="option in filterOptions(filterColumn)" :key="option.value">
                         <label class="ls-opt" x-show="!filterOptionSearch || option.label.toLowerCase().includes(filterOptionSearch.toLowerCase())">
-                            <input type="checkbox" class="fi-checkbox-input" :checked="(columnFilters[filterColumn.k] || []).includes(option.value)" @change="toggleFilterValue(filterColumn.k, option.value)">
+                            <input type="checkbox" class="fi-checkbox-input" :checked="(filterDraft[filterColumn.k] || []).includes(option.value)" @change="toggleFilterValue(filterColumn.k, option.value)">
                             <span x-text="option.label"></span>
                         </label>
                     </template>
@@ -227,34 +234,34 @@
         <template x-if="filterColumn && filterColumn.filter === 'num'">
             <div>
                 <div style="font-size:11px;color:var(--rg-muted)">{{ __('filament-datatable::datagrid.from') }}</div>
-                <input type="number" step="any" title="{{ __('filament-datatable::datagrid.from') }}" :value="(columnFilters[filterColumn.k] || {}).min ?? ''" @input="setNumberBound(filterColumn.k, 'min', $event.target.value)">
+                <input type="number" step="any" title="{{ __('filament-datatable::datagrid.from') }}" :value="(filterDraft[filterColumn.k] || {}).min ?? ''" @input="setNumberBound(filterColumn.k, 'min', $event.target.value)">
                 <div style="font-size:11px;color:var(--rg-muted)">{{ __('filament-datatable::datagrid.to') }}</div>
-                <input type="number" step="any" title="{{ __('filament-datatable::datagrid.to') }}" :value="(columnFilters[filterColumn.k] || {}).max ?? ''" @input="setNumberBound(filterColumn.k, 'max', $event.target.value)">
+                <input type="number" step="any" title="{{ __('filament-datatable::datagrid.to') }}" :value="(filterDraft[filterColumn.k] || {}).max ?? ''" @input="setNumberBound(filterColumn.k, 'max', $event.target.value)">
             </div>
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'datetime'">
             <div>
                 <div style="font-size:11px;color:var(--rg-muted)">{{ __('filament-datatable::datagrid.from') }}</div>
-                <input type="datetime-local" title="{{ __('filament-datatable::datagrid.from') }}" :value="(columnFilters[filterColumn.k] || {}).od || ''" @change="setRangeBound(filterColumn.k, 'od', $event.target.value)">
+                <input type="datetime-local" title="{{ __('filament-datatable::datagrid.from') }}" :value="(filterDraft[filterColumn.k] || {}).od || ''" @change="setRangeBound(filterColumn.k, 'od', $event.target.value)">
                 <div style="font-size:11px;color:var(--rg-muted)">{{ __('filament-datatable::datagrid.to') }}</div>
-                <input type="datetime-local" title="{{ __('filament-datatable::datagrid.to') }}" :value="(columnFilters[filterColumn.k] || {}).do || ''" @change="setRangeBound(filterColumn.k, 'do', $event.target.value)">
+                <input type="datetime-local" title="{{ __('filament-datatable::datagrid.to') }}" :value="(filterDraft[filterColumn.k] || {}).do || ''" @change="setRangeBound(filterColumn.k, 'do', $event.target.value)">
             </div>
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'text'">
             <input type="text" class="ls-fsearch" placeholder="{{ __('filament-datatable::datagrid.contains') }}"
-                   :value="columnFilters[filterColumn.k] || ''" @input="setTextFilter(filterColumn.k, $event.target.value)">
+                   :value="filterDraft[filterColumn.k] || ''" @input="setTextFilter(filterColumn.k, $event.target.value)">
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'date'">
             <div>
                 <div><div style="font-size:11px;color:#6b7280">{{ __('filament-datatable::datagrid.from') }}</div>
-                    <input type="date" title="{{ __('filament-datatable::datagrid.from') }}" :value="(columnFilters[filterColumn.k] || {}).od || ''" @change="setRangeBound(filterColumn.k, 'od', $event.target.value)"></div>
+                    <input type="date" title="{{ __('filament-datatable::datagrid.from') }}" :value="(filterDraft[filterColumn.k] || {}).od || ''" @change="setRangeBound(filterColumn.k, 'od', $event.target.value)"></div>
                 <div><div style="font-size:11px;color:#6b7280">{{ __('filament-datatable::datagrid.to') }}</div>
-                    <input type="date" title="{{ __('filament-datatable::datagrid.to') }}" :value="(columnFilters[filterColumn.k] || {}).do || ''" @change="setRangeBound(filterColumn.k, 'do', $event.target.value)"></div>
+                    <input type="date" title="{{ __('filament-datatable::datagrid.to') }}" :value="(filterDraft[filterColumn.k] || {}).do || ''" @change="setRangeBound(filterColumn.k, 'do', $event.target.value)"></div>
             </div>
         </template>
         <div class="ls-actions">
             <button @click="clearFilter(filterColumn.k)">{{ __('filament-datatable::datagrid.clear') }}</button>
-            <button class="ls-apply" @click="filterColumn = null">{{ __('filament-datatable::datagrid.apply') }}</button>
+            <button class="ls-apply" @click="applyFilter(filterColumn.k)">{{ __('filament-datatable::datagrid.apply') }}</button>
         </div>
     </div>
 
