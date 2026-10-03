@@ -66,23 +66,9 @@
                     {{ __('filament-datatable::datagrid.bulk_selected') }}
                 </span>
                 <div class="rg-bulk-actions">
-                    <button type="button" class="rg-actbtn rg-act-primary" @click="openBulk()" x-show="!bulkOpen">
+                    <button type="button" class="rg-actbtn rg-act-primary" @click="openBulk()">
                         <span x-text="bulkLabel || '{{ __('filament-datatable::datagrid.bulk_assign') }}'"></span>
                     </button>
-                    <template x-if="bulkOpen">
-                        <div class="rg-bulk-form">
-                            <template x-for="field in bulkFields" :key="field.key">
-                                <input type="text" class="fi-input rg-bulk-input" :placeholder="field.placeholder || field.label"
-                                       :aria-label="field.label" x-model="bulkValues[field.key]" @keydown.enter="applyBulk()">
-                            </template>
-                            <button type="button" class="rg-actbtn rg-act-primary" @click="applyBulk()" :disabled="bulkBusy">
-                                {{ __('filament-datatable::datagrid.bulk_apply') }}
-                            </button>
-                            <button type="button" class="rg-actbtn rg-act-gray" @click="bulkOpen = false">
-                                {{ __('filament-datatable::datagrid.bulk_cancel') }}
-                            </button>
-                        </div>
-                    </template>
                     <button type="button" class="rg-actbtn rg-act-gray" @click="clearSelection()">
                         {{ __('filament-datatable::datagrid.bulk_clear') }}
                     </button>
@@ -264,6 +250,38 @@
             <button class="ls-apply" @click="applyFilter(filterColumn.k)">{{ __('filament-datatable::datagrid.apply') }}</button>
         </div>
     </div>
+
+    {{-- Modal akcji masowej (FV / kwit) --}}
+    <template x-if="bulkUrl">
+        <div class="rg-modal-backdrop" x-show="bulkOpen" x-cloak
+             @click.self="bulkOpen = false" @keydown.escape.window="bulkOpen = false">
+            <div class="rg-modal" role="dialog" aria-modal="true">
+                <div class="rg-modal-head" x-text="bulkLabel || '{{ __('filament-datatable::datagrid.bulk_assign') }}'"></div>
+                <div class="rg-modal-sub">
+                    <span x-text="selectionCount()"></span>
+                    <span x-show="allFiltered" x-text="' {{ __('filament-datatable::datagrid.bulk_all_filtered') }}'"></span>
+                    {{ __('filament-datatable::datagrid.bulk_selected') }}
+                </div>
+                <div class="rg-modal-body">
+                    <template x-for="field in bulkFields" :key="field.key">
+                        <label class="rg-modal-field">
+                            <span class="rg-modal-label" x-text="field.label"></span>
+                            <input type="text" class="fi-input" :placeholder="field.placeholder || field.label"
+                                   :aria-label="field.label" x-model="bulkValues[field.key]" @keydown.enter="applyBulk()">
+                        </label>
+                    </template>
+                </div>
+                <div class="rg-modal-actions">
+                    <button type="button" class="rg-actbtn rg-act-gray" @click="bulkOpen = false">
+                        {{ __('filament-datatable::datagrid.bulk_cancel') }}
+                    </button>
+                    <button type="button" class="rg-actbtn rg-act-primary" @click="applyBulk()" :disabled="bulkBusy">
+                        {{ __('filament-datatable::datagrid.bulk_apply') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
 
     @include('filament-datatable::components.datagrid-styles')
 </div>
