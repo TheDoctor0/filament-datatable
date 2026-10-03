@@ -23,8 +23,10 @@
         background:color-mix(in srgb, var(--rg-primary) 12%, var(--rg-bg));color:var(--rg-primary);
         border-radius:999px;padding:5px 11px;font-size:13px;font-weight:700;cursor:pointer;line-height:1.3;}
     .rg-filterbadge:hover{background:color-mix(in srgb, var(--rg-primary) 20%, var(--rg-bg));}
-    .rg-filterbadge .rg-filterbadge-x{opacity:.65;}
+    .rg-filterbadge .rg-filterbadge-x{opacity:.65;flex:none;}
     .rg-filterbadge:hover .rg-filterbadge-x{opacity:1;}
+    .rg-filterbadge .rg-filterbadge-txt{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rg-filterbadge svg{flex:none;}
     .rg-wrap{overflow:auto;height:calc(100vh - 300px);background:var(--rg-bg);}
     .rg-table{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13.5px;color:var(--rg-fg);}
     .rg-table thead th{position:sticky;top:0;z-index:2;background:var(--rg-head);color:var(--rg-muted);font-weight:600;
@@ -45,7 +47,9 @@
     .rg-funnel{margin-left:1px;border:none;background:transparent;color:var(--rg-muted);cursor:pointer;padding:2px;
         border-radius:4px;vertical-align:middle;display:inline-flex;}
     .rg-funnel:hover{color:var(--rg-primary);}
-    .rg-funnel.on{color:var(--rg-primary);}
+    /* Aktywny filtr: wypełniony lejek w kolorze brandu + delikatne tło — wyraźnie widoczny. */
+    .rg-funnel.on{color:var(--rg-primary);background:color-mix(in srgb, var(--rg-primary) 15%, transparent);}
+    .rg-funnel.on svg,.rg-funnel.on svg path{fill:var(--rg-primary);stroke:var(--rg-primary);}
     .rg-row{height:42px;}
     .rg-row:hover td{background:var(--rg-hover);}
     .rg-td{padding:0 12px;height:42px;border-bottom:1px solid var(--rg-line);white-space:nowrap;overflow:hidden;

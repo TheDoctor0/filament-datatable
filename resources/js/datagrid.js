@@ -789,9 +789,24 @@ export default function datagrid(config) {
             this.applyView();
         },
 
+        /** Klucze aktywnych filtrów w kolejności kolumn. */
+        activeFilterKeys() {
+            const active = Object.keys(this.columnFilters).filter((k) => !this.filterValueEmpty(this.columnFilters[k]));
+            const order = (this.columnOrder && this.columnOrder.length) ? this.columnOrder : active;
+            const ordered = order.filter((k) => active.includes(k));
+            return ordered.concat(active.filter((k) => !ordered.includes(k)));
+        },
+
         /** Liczba aktywnych filtrów kolumn — do badge w pasku narzędzi. */
         activeFilterCount() {
-            return Object.keys(this.columnFilters).filter((k) => !this.filterValueEmpty(this.columnFilters[k])).length;
+            return this.activeFilterKeys().length;
+        },
+
+        /** Podsumowanie badge: nazwy kolumn (do 3) + „+x". */
+        filterSummary() {
+            const names = this.activeFilterKeys().map((k) => (this.columnsByKey[k] && this.columnsByKey[k].t) || k);
+            if (names.length <= 3) return names.join(', ');
+            return names.slice(0, 3).join(', ') + ' +' + (names.length - 3);
         },
 
         /** Wyczyść wszystkie filtry kolumn naraz. */

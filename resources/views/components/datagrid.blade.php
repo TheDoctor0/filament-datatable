@@ -25,8 +25,8 @@
 
             <button type="button" class="rg-filterbadge" x-show="activeFilterCount() > 0" x-cloak
                     @click="clearAllFilters()" :title="'{{ __('filament-datatable::datagrid.clear_all_filters') }}'">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z"/></svg>
-                <span x-text="activeFilterCount()"></span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z"/></svg>
+                <span class="rg-filterbadge-txt" x-text="filterSummary()"></span>
                 <svg class="rg-filterbadge-x" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
 
