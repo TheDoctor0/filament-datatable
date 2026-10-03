@@ -47,8 +47,8 @@
     .rg-funnel{margin-left:1px;border:none;background:transparent;color:var(--rg-muted);cursor:pointer;padding:2px;
         border-radius:4px;vertical-align:middle;display:inline-flex;}
     .rg-funnel:hover{color:var(--rg-primary);}
-    /* Aktywny filtr: wypełniony lejek w kolorze brandu + delikatne tło — wyraźnie widoczny. */
-    .rg-funnel.on{color:var(--rg-primary);background:color-mix(in srgb, var(--rg-primary) 15%, transparent);}
+    /* Aktywny filtr: wypełniony lejek w kolorze brandu — wyraźnie widoczny. */
+    .rg-funnel.on{color:var(--rg-primary);}
     .rg-funnel.on svg,.rg-funnel.on svg path{fill:var(--rg-primary);stroke:var(--rg-primary);}
     .rg-row{height:42px;}
     .rg-row:hover td{background:var(--rg-hover);}
