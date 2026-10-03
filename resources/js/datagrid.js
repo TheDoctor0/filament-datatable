@@ -365,9 +365,6 @@ export default function datagrid(config) {
         sort: config.sort || { key: null, dir: 'asc' },
         selectedIds: [],
         allFiltered: false,       // bulk: „zaznacz wszystko" = cały przefiltrowany zbiór (tryb serwerowy)
-        bulkOpen: false,          // widoczność formularza akcji masowej
-        bulkValues: {},           // wartości pól akcji masowej (np. {numer_fv, kwit_paletowy})
-        bulkBusy: false,
 
         // ---- columns (visibility + order, persisted) ----
         columnOrder: (config.columns || []).map((column) => column.k),
@@ -400,10 +397,9 @@ export default function datagrid(config) {
         actionsColumnWidth: config.actionsColumnWidth || 370,
         rowHighlight: config.rowHighlight || null,   // {field, class?} — truthy row[field] adds the class
         locale: config.locale || DEFAULT_LOCALE,
-        selectable: config.selectable || !!config.bulkUrl,   // checkbox column shown for explicit selection or any bulk action
-        bulkUrl: config.bulkUrl || null,      // POST endpoint dla akcji masowej (FV/kwit)
-        bulkFields: config.bulkFields || [],  // [{key,label,placeholder?}] — pola formularza masowego
-        bulkLabel: config.bulkLabel || null,  // etykieta przycisku akcji masowej
+        // Akcje masowe = akcje Filamenta montowane z paska zaznaczenia (modal/formularz po stronie app).
+        bulkActions: config.bulkActions || [],   // [{name,label,icon?,color?}]
+        selectable: config.selectable || (config.bulkActions || []).length > 0,   // kolumna checkbox gdy są akcje masowe
         _distinctCache: {},
         serverSummary: null,      // {count, sums} — tryb serwerowy
         _serverOptions: {},       // field → distinct values (tryb serwerowy)
@@ -849,40 +845,28 @@ export default function datagrid(config) {
             return this.allFiltered ? this.source.total() : this.selectedIds.length;
         },
         hasSelection() { return this.selectionCount() > 0; },
-        clearSelection() { this.selectedIds = []; this.allFiltered = false; this.bulkOpen = false; },
-        openBulk() {
-            this.bulkValues = Object.fromEntries((this.bulkFields || []).map((f) => [f.key, '']));
-            this.bulkOpen = true;
+        clearSelection() { this.selectedIds = []; this.allFiltered = false; },
+
+        /** Opis bieżącego zaznaczenia przekazywany do akcji (serwer odtwarza zakres). */
+        selectionPayload() {
+            return {
+                all: this.allFiltered,
+                ids: this.allFiltered ? [] : this.selectedIds,
+                search: this.searchQuery || '',
+                filters: this.columnFilters || {},
+            };
         },
-        async applyBulk() {
-            if (this.bulkBusy || !this.bulkUrl) return;
-            const fields = {};
-            for (const f of this.bulkFields) {
-                const v = (this.bulkValues[f.key] ?? '').trim();
-                if (v !== '') fields[f.key] = v;
-            }
-            if (Object.keys(fields).length === 0) return;   // nic do zapisania
-            this.bulkBusy = true;
-            try {
-                const response = await fetch(this.bulkUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.config.csrf },
-                    body: JSON.stringify({
-                        fields,
-                        all: this.allFiltered,
-                        ids: this.allFiltered ? [] : this.selectedIds,
-                        search: this.searchQuery || '',
-                        filters: this.columnFilters || {},
-                    }),
-                });
-                if (!response.ok) throw new Error('bulk failed');
-                this.clearSelection();
-                await this.reload();
-            } catch (error) {
-                console.error('[datagrid] bulk action failed', error);
-            } finally {
-                this.bulkBusy = false;
-            }
+
+        /**
+         * Montuje akcję masową Filamenta z zaznaczeniem w argumencie `bulk`
+         * (analogicznie do akcji wierszowych z { record: id }). Formularz/potwierdzenie
+         * i zapis są po stronie aplikacji; po sukcesie app wysyła rg-refresh / rg-clear-selection.
+         */
+        bulkAction(name) {
+            if (this.$wire) this.$wire.mountAction(name, { bulk: this.selectionPayload() });
+        },
+        actionColorClass(color) {
+            return color === 'primary' ? 'rg-btn-filled' : 'rg-btn-outline';
         },
 
         rowHighlightClass(row) {

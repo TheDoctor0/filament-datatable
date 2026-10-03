@@ -22,17 +22,6 @@
         background:transparent;color:var(--rg-fg);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;
         cursor:pointer;line-height:1.3;}
     .rg-btn-outline:hover{background:var(--rg-hover);border-color:var(--rg-primary);}
-    /* Modal akcji masowej */
-    .rg-modal-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
-        background:rgba(0,0,0,.45);padding:16px;}
-    .rg-modal{width:100%;max-width:420px;background:var(--rg-bg);color:var(--rg-fg);border:1px solid var(--rg-line);
-        border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);padding:20px;}
-    .rg-modal-head{font-size:16px;font-weight:700;}
-    .rg-modal-sub{font-size:13px;color:var(--rg-muted);margin-top:2px;}
-    .rg-modal-body{display:flex;flex-direction:column;gap:12px;margin:16px 0;}
-    .rg-modal-field{display:flex;flex-direction:column;gap:4px;}
-    .rg-modal-label{font-size:12px;font-weight:600;color:var(--rg-muted);}
-    .rg-modal-actions{display:flex;justify-content:flex-end;gap:8px;}
     .rg-dd{position:relative;margin-left:auto;}
     .rg-colsbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rg-line);background:var(--rg-bg);
         color:var(--rg-fg);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1.3;}

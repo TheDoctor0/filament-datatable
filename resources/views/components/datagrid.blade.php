@@ -6,6 +6,7 @@
     x-data="datagrid(@js($config))"
     x-on:rg-export.window="exportFile($event.detail.format)"
     x-on:rg-refresh.window="reload()"
+    x-on:rg-clear-selection.window="clearSelection()"
     class="rg fi-ta"
 >
     <div class="rg-card">
@@ -57,8 +58,8 @@
             </div>
         </div>
 
-        {{-- Pasek akcji masowej — widoczny gdy coś zaznaczono (tryb z bulkUrl) --}}
-        <template x-if="bulkUrl">
+        {{-- Pasek akcji masowej — widoczny gdy coś zaznaczono (gdy skonfigurowano bulkActions) --}}
+        <template x-if="bulkActions.length > 0">
             <div class="rg-bulkbar" x-show="hasSelection()" x-cloak>
                 <span class="rg-bulk-count">
                     <span x-text="selectionCount()"></span>
@@ -66,10 +67,12 @@
                     {{ __('filament-datatable::datagrid.bulk_selected') }}
                 </span>
                 <div class="rg-bulk-actions">
-                    <button type="button" class="rg-btn-filled" @click="openBulk()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                        <span x-text="bulkLabel || '{{ __('filament-datatable::datagrid.bulk_assign') }}'"></span>
-                    </button>
+                    <template x-for="action in bulkActions" :key="action.name">
+                        <button type="button" :class="actionColorClass(action.color)" @click="bulkAction(action.name)">
+                            <span x-show="action.icon" x-html="actionIcon(action)"></span>
+                            <span x-text="action.label"></span>
+                        </button>
+                    </template>
                     <button type="button" class="rg-btn-outline" @click="clearSelection()">
                         {{ __('filament-datatable::datagrid.bulk_clear') }}
                     </button>
@@ -251,38 +254,6 @@
             <button class="ls-apply" @click="applyFilter(filterColumn.k)">{{ __('filament-datatable::datagrid.apply') }}</button>
         </div>
     </div>
-
-    {{-- Modal akcji masowej (FV / kwit) --}}
-    <template x-if="bulkUrl">
-        <div class="rg-modal-backdrop" x-show="bulkOpen" x-cloak
-             @click.self="bulkOpen = false" @keydown.escape.window="bulkOpen = false">
-            <div class="rg-modal" role="dialog" aria-modal="true">
-                <div class="rg-modal-head" x-text="bulkLabel || '{{ __('filament-datatable::datagrid.bulk_assign') }}'"></div>
-                <div class="rg-modal-sub">
-                    <span x-text="selectionCount()"></span>
-                    <span x-show="allFiltered" x-text="' {{ __('filament-datatable::datagrid.bulk_all_filtered') }}'"></span>
-                    {{ __('filament-datatable::datagrid.bulk_selected') }}
-                </div>
-                <div class="rg-modal-body">
-                    <template x-for="field in bulkFields" :key="field.key">
-                        <label class="rg-modal-field">
-                            <span class="rg-modal-label" x-text="field.label"></span>
-                            <input type="text" class="fi-input" :placeholder="field.placeholder || field.label"
-                                   :aria-label="field.label" x-model="bulkValues[field.key]" @keydown.enter="applyBulk()">
-                        </label>
-                    </template>
-                </div>
-                <div class="rg-modal-actions">
-                    <button type="button" class="rg-actbtn rg-act-gray" @click="bulkOpen = false">
-                        {{ __('filament-datatable::datagrid.bulk_cancel') }}
-                    </button>
-                    <button type="button" class="rg-actbtn rg-act-primary" @click="applyBulk()" :disabled="bulkBusy">
-                        {{ __('filament-datatable::datagrid.bulk_apply') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </template>
 
     @include('filament-datatable::components.datagrid-styles')
 </div>
