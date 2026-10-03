@@ -66,10 +66,11 @@
                     {{ __('filament-datatable::datagrid.bulk_selected') }}
                 </span>
                 <div class="rg-bulk-actions">
-                    <button type="button" class="rg-actbtn rg-act-primary" @click="openBulk()">
+                    <button type="button" class="rg-btn-filled" @click="openBulk()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                         <span x-text="bulkLabel || '{{ __('filament-datatable::datagrid.bulk_assign') }}'"></span>
                     </button>
-                    <button type="button" class="rg-actbtn rg-act-gray" @click="clearSelection()">
+                    <button type="button" class="rg-btn-outline" @click="clearSelection()">
                         {{ __('filament-datatable::datagrid.bulk_clear') }}
                     </button>
                 </div>

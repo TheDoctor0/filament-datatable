@@ -12,6 +12,16 @@
     .rg-bulk-count{font-size:13px;font-weight:600;color:var(--rg-fg);}
     .rg-bulk-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto;}
     .rg-actbtn:disabled{opacity:.5;cursor:default;}
+    /* Przyciski paska akcji masowej */
+    .rg-btn-filled{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rg-primary);
+        background:var(--rg-primary);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;
+        cursor:pointer;line-height:1.3;}
+    .rg-btn-filled:hover{background:color-mix(in srgb,var(--rg-primary) 88%,#000);}
+    .rg-btn-filled svg{flex:none;}
+    .rg-btn-outline{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rg-line);
+        background:transparent;color:var(--rg-fg);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;
+        cursor:pointer;line-height:1.3;}
+    .rg-btn-outline:hover{background:var(--rg-hover);border-color:var(--rg-primary);}
     /* Modal akcji masowej */
     .rg-modal-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
         background:rgba(0,0,0,.45);padding:16px;}
