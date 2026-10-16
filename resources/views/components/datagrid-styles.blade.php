@@ -157,4 +157,91 @@
     .ls-actions button{flex:1;border-radius:7px;padding:6px 0;font-weight:600;font-size:12.5px;cursor:pointer;
         border:1px solid var(--rg-line);background:var(--rg-bg);color:var(--rg-fg);}
     .ls-actions .ls-apply{background:var(--rg-primary);color:#fff;border-color:var(--rg-primary);}
+    .ls-pop input[type=text]:focus,.ls-pop input[type=number]:focus{outline:2px solid color-mix(in srgb,var(--rg-primary) 40%,transparent);outline-offset:0;}
+
+    /* Thicker, easier-to-grab scrollbars on the grid viewport. */
+    .rg-wrap{scrollbar-width:auto;scrollbar-color:color-mix(in srgb,var(--rg-fg) 28%,transparent) transparent;}
+    .rg-wrap::-webkit-scrollbar{width:14px;height:14px;}
+    .rg-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--rg-fg) 24%,transparent);border-radius:8px;border:3px solid var(--rg-bg);}
+    .rg-wrap::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--rg-fg) 40%,transparent);}
+    .rg-wrap::-webkit-scrollbar-track{background:transparent;}
+    .rg-wrap::-webkit-scrollbar-corner{background:var(--rg-bg);}
+
+    /* Pinned columns (sticky left) and the sticky actions column (right). Only while .rg-pin is set
+       (wide enough viewport). Backgrounds are opaque so the cells scrolling underneath never show through. */
+    .rg-pin .rg-stick{position:sticky;z-index:1;background:var(--rg-bg);}
+    .rg-pin .rg-table thead th.rg-stick{z-index:3;background:var(--rg-head);}
+    .rg-pin .rg-row:hover td.rg-stick,.rg-pin .rg-selected td.rg-stick{background:linear-gradient(var(--rg-hover),var(--rg-hover)),var(--rg-bg);}
+    .rg-pin .rg-alert td.rg-stick{background:linear-gradient(rgba(185,28,28,.09),rgba(185,28,28,.09)),var(--rg-bg);}
+    :where(.dark) .rg-pin .rg-alert td.rg-stick{background:linear-gradient(rgba(248,113,113,.10),rgba(248,113,113,.10)),var(--rg-bg);}
+    .rg-pin .rg-frz-edge{box-shadow:inset -1px 0 0 var(--rg-line);}
+    .rg-pin.rg-scrolled .rg-frz-edge{box-shadow:inset -1px 0 0 var(--rg-line),8px 0 8px -8px rgba(0,0,0,.22);}
+    .rg-pin .rg-acts-pin{right:0;overflow:hidden;box-shadow:inset 1px 0 0 var(--rg-line),-8px 0 8px -8px rgba(0,0,0,.22);}
+
+    /* Header: one line — label truncated with an ellipsis (full text in the tooltip), icons never squeezed. */
+    .rg-th-box{display:flex;align-items:center;gap:1px;min-width:0;}
+    .rg-end .rg-th-box{justify-content:flex-end;}
+    .rg-th-in{min-width:0;}
+    .rg-th-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rg-sort,.rg-funnel{flex:none;}
+    /* Column resize handle on the header's right edge. */
+    .rg-resizer{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;touch-action:none;z-index:4;}
+    .rg-resizer::after{content:"";position:absolute;top:24%;bottom:24%;right:3px;width:2px;border-radius:2px;background:var(--rg-line);opacity:0;transition:opacity .1s;}
+    .rg-th:hover .rg-resizer::after{opacity:1;}
+    .rg-resizer:hover::after{background:var(--rg-primary);opacity:1;}
+    body.rg-resizing{cursor:col-resize!important;user-select:none;}
+    body.rg-resizing *{cursor:col-resize!important;}
+
+    /* Column picker: search + pin toggle per row. */
+    .rg-cols{min-width:280px;max-height:440px;}
+    .rg-cols .ls-fsearch{margin:2px 0 6px;}
+    .rg-colrow-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rg-pinbtn{flex:none;display:inline-grid;place-items:center;width:26px;height:24px;border:1px solid transparent;border-radius:6px;
+        background:transparent;color:var(--rg-muted);cursor:pointer;opacity:.45;padding:0;}
+    .rg-colrow:hover .rg-pinbtn{opacity:.8;}
+    .rg-pinbtn:hover{border-color:var(--rg-line);opacity:1;}
+    .rg-pinbtn.on{opacity:1;color:var(--rg-primary);border-color:color-mix(in srgb,var(--rg-primary) 35%,transparent);
+        background:color-mix(in srgb,var(--rg-primary) 10%,transparent);}
+
+    /* Quick-filter bar. */
+    .rg-qbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--rg-line);background:var(--rg-head);}
+    .rg-qbar-lead{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rg-muted);margin-right:2px;}
+    .rg-qpill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rg-line);background:var(--rg-bg);color:var(--rg-fg);
+        border-radius:8px;padding:5px 10px;font-size:13px;font-weight:500;cursor:pointer;line-height:1.3;white-space:nowrap;}
+    .rg-qpill:hover{border-color:var(--rg-primary);}
+    .rg-qpill.on{border-color:var(--rg-primary);color:var(--rg-primary);background:color-mix(in srgb,var(--rg-primary) 9%,var(--rg-bg));font-weight:600;}
+    .rg-qchev{opacity:.6;flex:none;}
+    .rg-qcnt{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;font-size:11px;font-weight:700;
+        background:var(--rg-primary);color:#fff;}
+    .rg-qadd{border-style:dashed;color:var(--rg-muted);}
+    .rg-qdd{position:relative;}
+    .rg-qmenu{top:36px;left:0;min-width:250px;}
+    .rg-qmenu .ls-opts{max-height:300px;}
+    .rg-qmenu-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--rg-fg);padding:6px 8px;border-radius:6px;
+        font-size:13px;cursor:pointer;}
+    .rg-qmenu-item:hover{background:var(--rg-hover);color:var(--rg-primary);}
+    .rg-qpin{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:6px;border:1px dashed var(--rg-line);
+        background:transparent;color:var(--rg-muted);border-radius:7px;padding:6px 0;font-size:12.5px;font-weight:600;cursor:pointer;}
+    .rg-qpin:hover{color:var(--rg-primary);border-color:var(--rg-primary);}
+
+    /* Active-filter chips (filterChips). */
+    .rg-toolbar{flex-wrap:wrap;}
+    .rg-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;}
+    .rg-chip{display:inline-flex;align-items:center;gap:2px;max-width:280px;border:1px solid color-mix(in srgb,var(--rg-primary) 30%,var(--rg-line));
+        background:color-mix(in srgb,var(--rg-primary) 8%,var(--rg-bg));border-radius:999px;padding:2px 4px 2px 10px;font-size:12.5px;line-height:1.4;}
+    .rg-chip-body{display:inline-flex;gap:4px;min-width:0;border:0;background:transparent;color:inherit;padding:0;cursor:pointer;font:inherit;}
+    .rg-chip-k{color:var(--rg-muted);white-space:nowrap;}
+    .rg-chip b{font-weight:600;color:var(--rg-fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rg-chip-x{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border:0;border-radius:50%;background:transparent;
+        color:var(--rg-muted);cursor:pointer;font-size:14px;line-height:1;padding:0;}
+    .rg-chip-x:hover{background:color-mix(in srgb,var(--rg-fg) 12%,transparent);color:var(--rg-fg);}
+    .rg-chip-clear{border:0;background:transparent;color:var(--rg-primary);font-weight:600;font-size:12.5px;cursor:pointer;padding:3px 6px;border-radius:6px;}
+    .rg-chip-clear:hover{background:color-mix(in srgb,var(--rg-primary) 10%,transparent);}
+
+    /* Num filter: value list + range. */
+    .rg-fpop{max-width:min(300px,calc(100vw - 16px));}
+    .rg-fsec{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rg-muted);margin:2px 0 6px;}
+    .rg-range{display:flex;gap:6px;}
+    .rg-range input{min-width:0;}
+    .rg-empty{display:flex;flex-direction:column;align-items:center;gap:12px;}
 </style>

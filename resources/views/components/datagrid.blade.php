@@ -1,16 +1,25 @@
 @props(['config'])
 
+@php
+    // Strings the JS needs at runtime (notifications) — the rest of the UI is rendered here.
+    $config['i18n'] = [
+        'exportFailed' => __('filament-datatable::datagrid.export_failed'),
+        'sessionExpired' => __('filament-datatable::datagrid.session_expired'),
+    ];
+@endphp
+
 <div
     x-load
     x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('datagrid', \TheDoctor0\FilamentDatatable\DatatableServiceProvider::PACKAGE) }}"
     x-data="datagrid(@js($config))"
-    x-on:rg-export.window="exportFile($event.detail.format)"
+    x-on:rg-export.window="exportFile($event.detail.format, !!$event.detail.selected)"
     x-on:rg-refresh.window="reload()"
     x-on:rg-clear-selection.window="clearSelection()"
     class="rg fi-ta"
+    :class="{ 'rg-pin': pinActive, 'rg-scrolled': scrolledX }"
 >
     <div class="rg-card">
-        {{-- Toolbar: search (left) + column manager (right) --}}
+        {{-- Toolbar: search + active filters (left) + column manager (right) --}}
         <div class="rg-toolbar">
             <div class="fi-input-wrp rg-search-wrp">
                 <div class="fi-input-wrp-prefix fi-input-wrp-prefix-has-content fi-inline">
@@ -24,12 +33,33 @@
                 </div>
             </div>
 
-            <button type="button" class="rg-filterbadge" x-show="activeFilterCount() > 0" x-cloak
-                    @click="clearAllFilters()" :title="'{{ __('filament-datatable::datagrid.clear_all_filters') }}'">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z"/></svg>
-                <span class="rg-filterbadge-txt" x-text="filterSummary()"></span>
-                <svg class="rg-filterbadge-x" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
+            @if (! empty($config['filterChips']))
+                {{-- Active-filter chips: everything narrowing the view, each removable; click a chip to edit it. --}}
+                <div class="rg-chips" x-show="isNarrowed()" x-cloak>
+                    <span class="rg-chip" x-show="searchQuery">
+                        <span class="rg-chip-k">{{ __('filament-datatable::datagrid.search') }}:</span>
+                        <b x-text="'“' + searchQuery + '”'"></b>
+                        <button type="button" class="rg-chip-x" @click="clearSearch()" aria-label="{{ __('filament-datatable::datagrid.clear') }}">&times;</button>
+                    </span>
+                    <template x-for="chip in filterChips()" :key="chip.key">
+                        <span class="rg-chip">
+                            <button type="button" class="rg-chip-body" @click.stop="openFilter(columnsByKey[chip.key], $event)">
+                                <span class="rg-chip-k" x-text="chip.label + ':'"></span>
+                                <b x-text="chip.text"></b>
+                            </button>
+                            <button type="button" class="rg-chip-x" @click="clearFilter(chip.key)" aria-label="{{ __('filament-datatable::datagrid.clear') }}">&times;</button>
+                        </span>
+                    </template>
+                    <button type="button" class="rg-chip-clear" @click="clearAllFilters(true)">{{ __('filament-datatable::datagrid.clear_filters') }}</button>
+                </div>
+            @else
+                <button type="button" class="rg-filterbadge" x-show="activeFilterCount() > 0" x-cloak
+                        @click="clearAllFilters()" :title="'{{ __('filament-datatable::datagrid.clear_all_filters') }}'">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z"/></svg>
+                    <span class="rg-filterbadge-txt" x-text="filterSummary()"></span>
+                    <svg class="rg-filterbadge-x" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            @endif
 
             <div class="rg-tools-end">
                 <button type="button" class="rg-colsbtn rg-collapse" x-show="hasExpanded()" x-cloak @click="collapseAll()">
@@ -51,13 +81,18 @@
                             <span>{{ __('filament-datatable::datagrid.columns') }}</span>
                             <button type="button" class="rg-reset" @click="resetColumns()">{{ __('filament-datatable::datagrid.reset') }}</button>
                         </div>
+                        <input type="text" class="ls-fsearch" placeholder="{{ __('filament-datatable::datagrid.search_columns') }}" x-model="columnSearch">
                         <template x-for="(column, index) in orderedColumns" :key="column.k">
-                            <label class="ls-opt rg-colrow" draggable="true"
+                            <label class="ls-opt rg-colrow" :draggable="!columnSearch" x-show="columnMatchesSearch(column)"
                                    @dragstart="draggingFrom = index" @dragover.prevent @drop.prevent="dropColumn(index)"
                                    :class="draggingFrom === index && 'rg-dragging'">
-                                <input type="checkbox" class="fi-checkbox-input" :checked="visibleKeys.includes(column.k)" @change="toggleColumn(column.k)">
-                                <span x-text="column.t" style="flex:1"></span>
-                                <span class="rg-drag" title="{{ __('filament-datatable::datagrid.drag_to_reorder') }}">
+                                <input type="checkbox" class="fi-checkbox-input" :checked="visibleKeys.includes(column.k)"
+                                       :disabled="isPinned(column.k)" @change="toggleColumn(column.k)">
+                                <span x-text="column.t" class="rg-colrow-label"></span>
+                                <button type="button" class="rg-pinbtn" :class="isPinned(column.k) && 'on'" x-html="icons.pin"
+                                        :title="isPinned(column.k) ? @js(__('filament-datatable::datagrid.unpin_column')) : @js(__('filament-datatable::datagrid.pin_column'))"
+                                        @click.stop.prevent="togglePin(column.k)"></button>
+                                <span class="rg-drag" x-show="!columnSearch" title="{{ __('filament-datatable::datagrid.drag_to_reorder') }}">
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16"/></svg>
                                 </span>
                             </label>
@@ -67,8 +102,37 @@
             </div>
         </div>
 
-        {{-- Pasek akcji masowej — widoczny gdy coś zaznaczono (gdy skonfigurowano bulkActions) --}}
-        <template x-if="bulkActions.length > 0">
+        {{-- Quick-filter bar: pinned filters one click away; any filterable column can be added. --}}
+        <template x-if="quickFiltersEnabled">
+            <div class="rg-qbar">
+                <span class="rg-qbar-lead">{{ __('filament-datatable::datagrid.quick_filters') }}</span>
+                <template x-for="column in quickColumns" :key="column.k">
+                    <button type="button" class="rg-qpill" :class="filterIsActive(column) && 'on'" :data-quick-key="column.k"
+                            @click.stop="openFilter(column, $event)">
+                        <span x-text="column.t"></span>
+                        <span class="rg-qcnt" x-show="filterCount(column.k) > 0" x-text="filterCount(column.k)"></span>
+                        <svg class="rg-qchev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                </template>
+                <div class="rg-qdd" @click.outside="quickMenuOpen = false">
+                    <button type="button" class="rg-qpill rg-qadd" @click="quickMenuOpen = !quickMenuOpen; quickSearch = ''">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        <span>{{ __('filament-datatable::datagrid.add_filter') }}</span>
+                    </button>
+                    <div class="ls-pop rg-qmenu" x-show="quickMenuOpen" x-cloak>
+                        <input type="text" class="ls-fsearch" placeholder="{{ __('filament-datatable::datagrid.search_columns') }}" x-model="quickSearch">
+                        <div class="ls-opts">
+                            <template x-for="column in (quickMenuOpen ? quickCandidates() : [])" :key="column.k">
+                                <button type="button" class="rg-qmenu-item" @click.stop="addQuickFilter(column)" x-text="column.t"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        {{-- Pasek akcji masowej — widoczny gdy coś zaznaczono (gdy skonfigurowano bulkActions / bulkExport) --}}
+        <template x-if="bulkActions.length > 0 || bulkExport.length > 0">
             <div class="rg-bulkbar" x-show="hasSelection()" x-cloak>
                 <span class="rg-bulk-count">
                     <span x-text="selectionCount()"></span>
@@ -76,6 +140,12 @@
                     {{ __('filament-datatable::datagrid.bulk_selected') }}
                 </span>
                 <div class="rg-bulk-actions">
+                    <template x-for="format in bulkExport" :key="format">
+                        <button type="button" class="rg-btn-outline" @click="exportFile(format, true)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>
+                            <span x-text="@js(__('filament-datatable::datagrid.export_selected')) + ' (' + format.toUpperCase() + ')'"></span>
+                        </button>
+                    </template>
                     <template x-for="action in bulkActions" :key="action.name">
                         <button type="button" :class="actionColorClass(action.color)" @click="bulkAction(action.name)">
                             <span x-show="action.icon" x-html="actionIcon(action)"></span>
@@ -101,35 +171,38 @@
                     </div>
                 @endfor
             </div>
-            <table class="rg-table" x-cloak :style="`min-width:${totalColumnsWidth + leadWidth + (rowActions ? actionsColumnWidth : 0)}px`">
+            {{-- Column cells = pinned columns, left spacer, in-view columns, right spacer (see cellColumns). --}}
+            <table class="rg-table" x-cloak :style="`min-width:${tableWidth}px`">
                 <colgroup>
                     <template x-if="selectable"><col style="width:44px"></template>
-                    <col :style="`width:${leftColSpacer}px`">
-                    <template x-for="column in renderedColumns" :key="column.k"><col :style="`width:${columnWidth(column)}px`"></template>
-                    <col :style="`width:${rightColSpacer}px`">
+                    <template x-for="column in cellColumns" :key="column.k"><col :style="`width:${cellWidth(column)}px`"></template>
                     <template x-if="rowActions"><col :style="`width:${actionsColumnWidth}px`"></template>
                 </colgroup>
                 <thead>
                     <tr>
                         <template x-if="selectable">
-                            <th class="rg-th rg-check">
+                            <th class="rg-th rg-check rg-stick" style="left:0">
                                 <input type="checkbox" class="fi-checkbox-input" :checked="allSelected()" @change="toggleSelectAll()">
                             </th>
                         </template>
-                        <th class="rg-th rg-spacer"></th>
-                        <template x-for="column in renderedColumns" :key="column.k">
-                            <th class="rg-th" :class="column.align === 'end' && 'rg-end'">
-                                <span class="rg-th-in" @click="toggleSort(column.k)">
-                                    <span x-text="column.t"></span>
-                                    <span class="rg-sort" :class="sort.key === column.k && 'on'"
-                                          x-html="(sort.key === column.k && sort.dir === 'asc') ? icons.chevronUp : icons.chevronDown"></span>
-                                </span>
-                                <button type="button" class="rg-funnel" :class="filterIsActive(column) && 'on'"
-                                        x-show="column.filter" @click.stop="openFilter(column, $event)" title="{{ __('filament-datatable::datagrid.filter') }}" x-html="icons.funnel"></button>
+                        <template x-for="column in cellColumns" :key="column.k">
+                            <th class="rg-th" :class="headClass(column)" :style="cellStyle(column)">
+                                <template x-if="!column._spacer">
+                                    <span class="rg-th-box">
+                                        <span class="rg-th-in" @click="toggleSort(column.k)">
+                                            <span class="rg-th-label" x-text="column.t" :title="column.t"></span>
+                                            <span class="rg-sort" :class="sort.key === column.k && 'on'"
+                                                  x-html="(sort.key === column.k && sort.dir === 'asc') ? icons.chevronUp : icons.chevronDown"></span>
+                                        </span>
+                                        <button type="button" class="rg-funnel" :class="filterIsActive(column) && 'on'"
+                                                x-show="column.filter" @click.stop="openFilter(column, $event)" title="{{ __('filament-datatable::datagrid.filter') }}" x-html="icons.funnel"></button>
+                                        <span class="rg-resizer" x-show="resizable" title="{{ __('filament-datatable::datagrid.resize') }}"
+                                              @pointerdown.stop.prevent="startResize(column, $event)" @dblclick.stop="resetWidth(column.k)" @click.stop></span>
+                                    </span>
+                                </template>
                             </th>
                         </template>
-                        <th class="rg-th rg-spacer"></th>
-                        <th class="rg-th rg-acts-th" x-show="rowActions">{{ __('filament-datatable::datagrid.actions') }}</th>
+                        <th class="rg-th rg-acts-th" :class="stickyActions && 'rg-stick rg-acts-pin'" x-show="rowActions">{{ __('filament-datatable::datagrid.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -138,13 +211,13 @@
                     {{-- Shimmer rows while data loads — aligned to the real (already-visible) columns --}}
                     <template x-for="n in (loading ? 14 : 0)" :key="`sk${n}`">
                         <tr class="rg-row">
-                            <template x-if="selectable"><td class="rg-td rg-check"></td></template>
-                            <td class="rg-td rg-spacer"></td>
-                            <template x-for="column in renderedColumns" :key="column.k">
-                                <td class="rg-td"><span class="rg-skel-bar" :style="`width:${skeletonBarWidth(column)}px`"></span></td>
+                            <template x-if="selectable"><td class="rg-td rg-check rg-stick" style="left:0"></td></template>
+                            <template x-for="column in cellColumns" :key="column.k">
+                                <td class="rg-td" :class="column._spacer ? 'rg-spacer' : cellClass(column, null)" :style="cellStyle(column)">
+                                    <template x-if="!column._spacer"><span class="rg-skel-bar" :style="`width:${skeletonBarWidth(column)}px`"></span></template>
+                                </td>
                             </template>
-                            <td class="rg-td rg-spacer"></td>
-                            <template x-if="rowActions"><td class="rg-td rg-acts"></td></template>
+                            <template x-if="rowActions"><td class="rg-td rg-acts" :class="stickyActions && 'rg-stick rg-acts-pin'"></td></template>
                         </tr>
                     </template>
 
@@ -154,14 +227,13 @@
                             :style="rowUrl ? 'cursor:pointer' : ''"
                             :class="[row && isRowSelected(row.id) && 'rg-selected', rowHighlightClass(row), treeRowClass(row)]">
                             <template x-if="selectable">
-                                <td class="rg-td rg-check">
+                                <td class="rg-td rg-check rg-stick" style="left:0" @click.stop>
                                     <input type="checkbox" class="fi-checkbox-input" :checked="row && isRowSelected(row.id)" :disabled="allFiltered" @change="row && toggleRowSelection(row.id)">
                                 </td>
                             </template>
-                            <td class="rg-td rg-spacer"></td>
-                            <template x-for="column in renderedColumns" :key="column.k">
-                                <td class="rg-td" :class="cellClass(column, row)">
-                                    <template x-if="canEdit(column, row)">
+                            <template x-for="column in cellColumns" :key="column.k">
+                                <td class="rg-td" :class="column._spacer ? 'rg-spacer' : cellClass(column, row)" :style="cellStyle(column)">
+                                    <template x-if="!column._spacer && canEdit(column, row)">
                                         <div class="fi-ta-text-input">
                                             <div class="fi-input-wrp">
                                                 <div class="fi-input-wrp-content-ctn">
@@ -175,7 +247,7 @@
                                             </div>
                                         </div>
                                     </template>
-                                    <template x-if="!canEdit(column, row) && isTreeColumn(column)">
+                                    <template x-if="!column._spacer && !canEdit(column, row) && isTreeColumn(column)">
                                         <div class="rg-tree" :style="`padding-left:${treeIndent(row)}px`">
                                             <button type="button" class="rg-chev" x-show="row && row._hasChildren"
                                                     :class="isExpanded(row) && 'open'"
@@ -191,15 +263,14 @@
                                                   x-text="row ? cellView(row, column).text : ''"></span>
                                         </div>
                                     </template>
-                                    <template x-if="!canEdit(column, row) && !isTreeColumn(column)">
+                                    <template x-if="!column._spacer && !canEdit(column, row) && !isTreeColumn(column)">
                                         <span :class="row ? cellView(row, column).cls : ''"
                                               :title="row ? cellView(row, column).title : ''"
                                               x-text="row ? cellView(row, column).text : ''"></span>
                                     </template>
                                 </td>
                             </template>
-                            <td class="rg-td rg-spacer"></td>
-                            <td class="rg-td rg-acts" x-show="rowActions">
+                            <td class="rg-td rg-acts" :class="stickyActions && 'rg-stick rg-acts-pin'" x-show="rowActions">
                                 <div class="rg-acts-in">
                                     <template x-for="action in (row ? actionsFor(row) : [])" :key="action.name">
                                         <span>
@@ -221,7 +292,12 @@
                     <tr x-ref="bottomSpacer"><td :colspan="spacerColspan" style="padding:0;border:0"></td></tr>
                 </tbody>
             </table>
-            <div class="rg-empty" x-cloak x-show="!loading && filteredCount === 0">{{ __('filament-datatable::datagrid.no_rows') }}</div>
+            <div class="rg-empty" x-cloak x-show="!loading && filteredCount === 0">
+                <div>{{ __('filament-datatable::datagrid.no_rows') }}</div>
+                <button type="button" class="rg-btn-outline" x-show="isNarrowed()" @click="clearAllFilters(true)">
+                    {{ __('filament-datatable::datagrid.clear_filters') }}
+                </button>
+            </div>
         </div>
 
         {{-- Summary bar (part of the card, does not scroll horizontally). --}}
@@ -240,7 +316,7 @@
                 <input type="text" class="ls-fsearch" placeholder="{{ __('filament-datatable::datagrid.search_options') }}" x-model="filterOptionSearch">
                 <div class="ls-opts">
                     <template x-for="option in filterOptions(filterColumn)" :key="option.value">
-                        <label class="ls-opt" x-show="!filterOptionSearch || option.label.toLowerCase().includes(filterOptionSearch.toLowerCase())">
+                        <label class="ls-opt" x-show="optionMatches(option)">
                             <input type="checkbox" class="fi-checkbox-input" :checked="(filterDraft[filterColumn.k] || []).includes(option.value)" @change="toggleFilterValue(filterColumn.k, option.value)">
                             <span x-text="option.label"></span>
                         </label>
@@ -250,10 +326,26 @@
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'num'">
             <div>
-                <div style="font-size:11px;color:var(--rg-muted)">{{ __('filament-datatable::datagrid.from') }}</div>
-                <input type="number" step="any" title="{{ __('filament-datatable::datagrid.from') }}" :value="(filterDraft[filterColumn.k] || {}).min ?? ''" @input="setNumberBound(filterColumn.k, 'min', $event.target.value)">
-                <div style="font-size:11px;color:var(--rg-muted)">{{ __('filament-datatable::datagrid.to') }}</div>
-                <input type="number" step="any" title="{{ __('filament-datatable::datagrid.to') }}" :value="(filterDraft[filterColumn.k] || {}).max ?? ''" @input="setNumberBound(filterColumn.k, 'max', $event.target.value)">
+                {{-- Pick exact values (e.g. 50 mm, 88 mm) and/or a range — both apply together. --}}
+                <template x-if="numValueList(filterColumn)">
+                    <div>
+                        <div class="rg-fsec">{{ __('filament-datatable::datagrid.values') }}</div>
+                        <input type="text" class="ls-fsearch" placeholder="{{ __('filament-datatable::datagrid.search_options') }}" x-model="filterOptionSearch">
+                        <div class="ls-opts">
+                            <template x-for="option in filterOptions(filterColumn)" :key="option.value">
+                                <label class="ls-opt" x-show="optionMatches(option)">
+                                    <input type="checkbox" class="fi-checkbox-input" :checked="numValuePicked(filterColumn.k, option.value)" @change="toggleNumValue(filterColumn.k, option.value)">
+                                    <span x-text="option.label"></span>
+                                </label>
+                            </template>
+                        </div>
+                        <div class="rg-fsec">{{ __('filament-datatable::datagrid.range') }}</div>
+                    </div>
+                </template>
+                <div class="rg-range">
+                    <input type="number" step="any" placeholder="{{ __('filament-datatable::datagrid.from') }}" title="{{ __('filament-datatable::datagrid.from') }}" :value="(filterDraft[filterColumn.k] || {}).min ?? ''" @input="setNumberBound(filterColumn.k, 'min', $event.target.value)">
+                    <input type="number" step="any" placeholder="{{ __('filament-datatable::datagrid.to') }}" title="{{ __('filament-datatable::datagrid.to') }}" :value="(filterDraft[filterColumn.k] || {}).max ?? ''" @input="setNumberBound(filterColumn.k, 'max', $event.target.value)">
+                </div>
             </div>
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'datetime'">
@@ -266,7 +358,8 @@
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'text'">
             <input type="text" class="ls-fsearch" placeholder="{{ __('filament-datatable::datagrid.contains') }}"
-                   :value="filterDraft[filterColumn.k] || ''" @input="setTextFilter(filterColumn.k, $event.target.value)">
+                   :value="filterDraft[filterColumn.k] || ''" @input="setTextFilter(filterColumn.k, $event.target.value)"
+                   @keydown.enter="applyFilter(filterColumn.k)">
         </template>
         <template x-if="filterColumn && filterColumn.filter === 'date'">
             <div>
@@ -280,6 +373,12 @@
             <button @click="clearFilter(filterColumn.k)">{{ __('filament-datatable::datagrid.clear') }}</button>
             <button class="ls-apply" @click="applyFilter(filterColumn.k)">{{ __('filament-datatable::datagrid.apply') }}</button>
         </div>
+        <template x-if="quickFiltersEnabled && filterColumn">
+            <button type="button" class="rg-qpin" @click="toggleQuickFilter(filterColumn.k)">
+                <span x-html="icons.pin"></span>
+                <span x-text="quickKeys.includes(filterColumn.k) ? @js(__('filament-datatable::datagrid.unpin_from_bar')) : @js(__('filament-datatable::datagrid.pin_to_bar'))"></span>
+            </button>
+        </template>
     </div>
 
     @include('filament-datatable::components.datagrid-styles')
