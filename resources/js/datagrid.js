@@ -17,6 +17,9 @@ export const ROW_HEIGHT = 42; // px — fixed height is what makes scroll→inde
 export const OVERSCAN_ROWS = 4; // rows rendered above/below the viewport as a buffer
 export const OVERSCAN_COLUMNS = 2; // columns rendered left/right of the viewport as a buffer
 export const CHECKBOX_COLUMN_WIDTH = 44;
+export const MIN_COLUMN_WIDTH = 56; // user drag-resize clamp
+export const MAX_COLUMN_WIDTH = 900;
+export const PIN_MIN_VIEWPORT = 640; // below this pinned columns/actions scroll normally (phones)
 
 /**
  * Which columns fall inside the horizontal viewport (column virtualization).
@@ -98,9 +101,18 @@ function normaliseDateTime(value) {
     return String(value ?? '').slice(0, 16).replace('T', ' ');
 }
 
+/** Is a filter value "empty" (narrows nothing)? Handles nested shapes such as `{min, max, in: []}`. */
+export function isEmptyFilterValue(value) {
+    if (value == null || value === '') return true;
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value === 'object') return Object.values(value).every((inner) => isEmptyFilterValue(inner));
+    return false;
+}
+
 /**
  * Does a row pass a single column filter? `kind` is the column's declared filter type.
- * Values shapes: select → array; num → {min,max}; datetime/date → {od,do}; text → string.
+ * Values shapes: select → array; num → {min?, max?, in?: [...]}; datetime/date → {od,do}; text → string.
+ * A num filter ANDs its picked values (`in`) with its range; an empty cell never satisfies either.
  */
 export function rowPassesColumnFilter(row, column, filterValue) {
     if (filterValue == null) return true;
@@ -112,9 +124,15 @@ export function rowPassesColumnFilter(row, column, filterValue) {
             || filterValue.includes(String(cellValue ?? ''));
     }
     if (kind === 'num') {
-        const numeric = Number(cellValue) || 0;
-        if (filterValue.min != null && filterValue.min !== '' && numeric < Number(filterValue.min)) return false;
-        if (filterValue.max != null && filterValue.max !== '' && numeric > Number(filterValue.max)) return false;
+        const picked = Array.isArray(filterValue.in) ? filterValue.in : [];
+        const hasMin = filterValue.min != null && filterValue.min !== '';
+        const hasMax = filterValue.max != null && filterValue.max !== '';
+        if (!picked.length && !hasMin && !hasMax) return true;
+        if (cellValue == null || cellValue === '') return false;
+        if (picked.length && !picked.includes(String(cellValue))) return false;
+        const numeric = Number(cellValue);
+        if (hasMin && !(numeric >= Number(filterValue.min))) return false;
+        if (hasMax && !(numeric <= Number(filterValue.max))) return false;
         return true;
     }
     if (kind === 'datetime') {
@@ -155,14 +173,50 @@ export function rowPassesPreFilter(row, preFilter) {
     return true;
 }
 
-/** Distinct, sorted, non-empty values of a field across rows — for select-filter options. */
-export function distinctValues(rows, field) {
+/** Distinct, sorted, non-empty values of a field across rows — for select / value-list filter options. */
+export function distinctValues(rows, field, numeric = false) {
     const seen = new Set();
     for (const row of rows) {
         const value = row[field];
         if (value != null && value !== '') seen.add(String(value));
     }
-    return [...seen].sort();
+    return numeric ? [...seen].sort((a, b) => Number(a) - Number(b)) : [...seen].sort();
+}
+
+/** Clamp a user-dragged column width. */
+export function clampColumnWidth(width) {
+    return Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, Number(width) || 0)));
+}
+
+/** "a, b +3" — the first `limit` items and a count of the rest. */
+function shortList(items, limit = 2) {
+    return items.length <= limit ? items.join(', ') : `${items.slice(0, limit).join(', ')} +${items.length - limit}`;
+}
+
+/** "from–to" / "≥ from" / "≤ to" for a range, '' when both bounds are empty. */
+function rangeText(from, to) {
+    const hasFrom = from != null && from !== '';
+    const hasTo = to != null && to !== '';
+    if (hasFrom && hasTo) return `${from}–${to}`;
+    if (hasFrom) return `≥ ${from}`;
+    if (hasTo) return `≤ ${to}`;
+    return '';
+}
+
+/** Short human text of an active filter value, for the active-filter chips. */
+export function describeFilterValue(column, value, locale = DEFAULT_LOCALE) {
+    if (isEmptyFilterValue(value)) return '';
+    const kind = column.filter;
+    if (kind === 'select') return shortList(value.map((item) => String(valueLabel(column, item) ?? item)));
+    if (kind === 'num') {
+        const parts = [];
+        if (Array.isArray(value.in) && value.in.length) parts.push(shortList(value.in.map((item) => formatNumber(item, locale))));
+        const range = rangeText(value.min, value.max);
+        if (range) parts.push(range);
+        return parts.join(' · ');
+    }
+    if (kind === 'date' || kind === 'datetime') return rangeText(value.od && formatDateTime(value.od), value.do && formatDateTime(value.do));
+    return `“${value}”`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -494,6 +548,10 @@ export function cleanFilterValue(kind, value) {
         if (kind === 'num' ? !Number.isFinite(Number(raw)) : typeof raw !== 'string') continue;
         range[bound] = String(raw);
     }
+    if (kind === 'num' && Array.isArray(value.in)) {
+        const picked = value.in.filter(isText).map(String).filter((item) => Number.isFinite(Number(item)));
+        if (picked.length > 0) range.in = picked;
+    }
     return Object.keys(range).length > 0 ? range : null;
 }
 
@@ -548,10 +606,7 @@ export function serializeGridState(params, { searchQuery, columnFilters, sort },
     const active = {};
     for (const key in columnFilters || {}) {
         const value = columnFilters[key];
-        if (value == null || (Array.isArray(value) && value.length === 0)) continue;
-        if (typeof value === 'object' && !Array.isArray(value)
-            && !Object.values(value).some((v) => v !== '' && v != null)) continue;
-        if (value === '') continue;
+        if (isEmptyFilterValue(value)) continue;
         active[key] = value;
     }
     if (Object.keys(active).length > 0) params.set(prefix + 'f', JSON.stringify(active));
@@ -564,6 +619,8 @@ export function serializeGridState(params, { searchQuery, columnFilters, sort },
  * Icons                                                               *
  * ------------------------------------------------------------------ */
 
+const PIN_ICON =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
 const FUNNEL_ICON =
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z"/></svg>';
 const CHEVRON_UP_ICON =
@@ -600,7 +657,7 @@ export default function datagrid(config) {
 
     return {
         config,
-        icons: { funnel: FUNNEL_ICON, chevronUp: CHEVRON_UP_ICON, chevronDown: CHEVRON_DOWN_ICON },
+        icons: { funnel: FUNNEL_ICON, chevronUp: CHEVRON_UP_ICON, chevronDown: CHEVRON_DOWN_ICON, pin: PIN_ICON },
 
         // ---- data ----
         source: null,
@@ -616,15 +673,31 @@ export default function datagrid(config) {
         selectedIds: [],
         allFiltered: false,       // bulk: „zaznacz wszystko" = cały przefiltrowany zbiór (tryb serwerowy)
 
-        // ---- columns (visibility + order, persisted) ----
+        // ---- columns (visibility + order + pinning + user widths, persisted) ----
         columnOrder: (config.columns || []).map((column) => column.k),
         visibleKeys: (config.columns || []).filter((column) => !column.off).map((column) => column.k),
+        frozenKeys: [...(config.frozen || [])],   // pinned left (sticky) while scrolling sideways
+        userWidths: {},                          // key → px, set by dragging a header edge
+        resizable: config.resizable !== false,
+        stickyActions: !!config.stickyActions,   // actions column pinned to the right edge
+        pinActive: true,                         // false on narrow viewports: pinned parts scroll normally
+        scrolledX: false,                        // drives the shadow under the pinned edge
+
+        // ---- quick-filter bar ----
+        quickFiltersEnabled: Array.isArray(config.quickFilters),
+        quickKeys: [...(config.quickFilters || [])],
+        quickMenuOpen: false,
+        quickSearch: '',
 
         // ---- vertical window (fixed pool recycled on scroll) ----
         firstIndex: 0,
         poolSize: 40,
 
         // ---- horizontal window (column virtualization) ----
+        // `cellColumns` is what every header/body row iterates: the pinned columns (wrapped with
+        // their sticky offset), the left spacer, the scrolled-into-view columns and the right spacer.
+        // It is rebuilt only when the window or the layout changes, never per row.
+        cellColumns: [],
         firstColIndex: 0,
         lastColIndex: 999,
         leftColSpacer: 0,
@@ -633,9 +706,11 @@ export default function datagrid(config) {
         _contentWidths: null,   // measured auto-fit widths per column key
         _measureCtx: null,
         _lastScrollLeft: -1,
+        _windowSignature: '',
 
         // ---- popovers / dropdowns ----
         columnMenuOpen: false,
+        columnSearch: '',
         draggingFrom: null,
         filterColumn: null,
         filterOptionSearch: '',
@@ -649,7 +724,9 @@ export default function datagrid(config) {
         locale: config.locale || DEFAULT_LOCALE,
         // Akcje masowe = akcje Filamenta montowane z paska zaznaczenia (modal/formularz po stronie app).
         bulkActions: config.bulkActions || [],   // [{name,label,icon?,color?}]
-        selectable: config.selectable || (config.bulkActions || []).length > 0,   // kolumna checkbox gdy są akcje masowe
+        bulkExport: config.bulkExport || [],     // ['xlsx','csv'] — built-in "export selected" buttons on the bulk bar
+        // kolumna checkbox gdy są akcje masowe
+        selectable: config.selectable || (config.bulkActions || []).length > 0 || (config.bulkExport || []).length > 0,
         _distinctCache: {},
         serverSummary: null,      // {count, sums} — tryb serwerowy
         _serverOptions: {},       // field → distinct values (tryb serwerowy)
@@ -701,6 +778,17 @@ export default function datagrid(config) {
         attachScrollListener() {
             const scroller = this.$refs.scroller;
             if (scroller) scroller.addEventListener('scroll', () => this.onScroll(), { passive: true });
+            // Viewport width decides whether pinning is active and how many columns are in view.
+            let frame = 0;
+            window.addEventListener('resize', () => {
+                if (frame) return;
+                frame = requestAnimationFrame(() => {
+                    frame = 0;
+                    this.recomputePoolSize();
+                    this.recomputeColumnWindow();
+                    this.recomputePadding();
+                });
+            }, { passive: true });
         },
 
         /* ------------------------- view pipeline ------------------------- */
@@ -786,6 +874,8 @@ export default function datagrid(config) {
             }
             if (scroller.scrollLeft !== this._lastScrollLeft) {
                 this._lastScrollLeft = scroller.scrollLeft;
+                const scrolled = scroller.scrollLeft > 0;
+                if (scrolled !== this.scrolledX) this.scrolledX = scrolled;
                 this.recomputeColumnWindow();
             }
         },
@@ -870,35 +960,77 @@ export default function datagrid(config) {
                 .map((key) => this.columnsByKey[key])
                 .filter(Boolean);
         },
-        get totalColumnsWidth() {
-            return this.columnWidths().reduce((sum, width) => sum + width, 0);
+        /** Visible pinned columns, in column order. They are never virtualized. */
+        get frozenColumns() { return this.visibleColumns.filter((column) => this.frozenKeys.includes(column.k)); },
+        /** Visible unpinned columns — the ones column virtualization windows over. */
+        get scrollColumns() { return this.visibleColumns.filter((column) => !this.frozenKeys.includes(column.k)); },
+        get frozenWidth() { return this.frozenColumns.reduce((sum, column) => sum + this.columnWidth(column), 0); },
+        get checkboxWidth() { return this.selectable ? CHECKBOX_COLUMN_WIDTH : 0; },
+        get tableWidth() {
+            return this.checkboxWidth + this.frozenWidth + this.columnWidths().reduce((sum, width) => sum + width, 0)
+                + (this.rowActions ? this.actionsColumnWidth : 0);
         },
 
-        // Only the horizontally-visible columns are rendered; spacers fill the rest.
+        // Only the horizontally-visible scroll columns are rendered; spacers fill the rest.
         columnWidths() {
-            if (!this._columnWidths) this._columnWidths = this.visibleColumns.map((column) => this.columnWidth(column));
+            if (!this._columnWidths) this._columnWidths = this.scrollColumns.map((column) => this.columnWidth(column));
             return this._columnWidths;
         },
-        get renderedColumns() {
-            return this.visibleColumns.slice(this.firstColIndex, this.lastColIndex + 1);
-        },
-        get leadWidth() { return this.selectable ? CHECKBOX_COLUMN_WIDTH : 0; },
         get spacerColspan() {
-            // optional checkbox + left spacer + rendered columns + right spacer + optional actions column
-            return (this.selectable ? 1 : 0) + 2 + this.renderedColumns.length + (this.rowActions ? 1 : 0);
+            // optional checkbox + pinned + spacers + rendered columns + optional actions column
+            return (this.selectable ? 1 : 0) + this.cellColumns.length + (this.rowActions ? 1 : 0);
         },
-        recomputeColumnWindow() {
+        /**
+         * Recompute which scroll columns are in view and rebuild `cellColumns`. With pinning active
+         * the checkbox + pinned columns (left) and the actions column (right, when sticky) cover part
+         * of the viewport, so only the gap between them is the scroll columns' viewport. Without it
+         * (narrow screens) they are ordinary leading/trailing columns.
+         */
+        recomputeColumnWindow(force = false) {
             const scroller = this.$refs.scroller;
             if (!scroller) return;
-            const window = computeColumnWindow(this.columnWidths(), scroller.scrollLeft, scroller.clientWidth, OVERSCAN_COLUMNS, this.leadWidth);
+            const pinActive = scroller.clientWidth >= (this.config.pinMinViewport || PIN_MIN_VIEWPORT);
+            if (pinActive !== this.pinActive) { this.pinActive = pinActive; force = true; }
+            const leading = this.checkboxWidth + this.frozenWidth;
+            const trailing = this.stickyActions && this.rowActions ? this.actionsColumnWidth : 0;
+            const window = pinActive
+                ? computeColumnWindow(this.columnWidths(), scroller.scrollLeft, Math.max(0, scroller.clientWidth - leading - trailing), OVERSCAN_COLUMNS, 0)
+                : computeColumnWindow(this.columnWidths(), scroller.scrollLeft, scroller.clientWidth, OVERSCAN_COLUMNS, leading);
+            const signature = `${window.first}:${window.last}`;
+            if (!force && signature === this._windowSignature) return;
+            this._windowSignature = signature;
             this.firstColIndex = window.first;
             this.lastColIndex = window.last;
             this.leftColSpacer = window.leftSpacer;
             this.rightColSpacer = window.rightSpacer;
+
+            let left = this.checkboxWidth;
+            const frozen = this.frozenColumns;
+            const pinned = frozen.map((column, index) => {
+                const cell = { ...column, _frozen: true, _left: left, _edge: index === frozen.length - 1 };
+                left += this.columnWidth(column);
+                return cell;
+            });
+            this.cellColumns = [
+                ...pinned,
+                { k: '__left', _spacer: true, _w: window.leftSpacer },
+                ...this.scrollColumns.slice(window.first, window.last + 1),
+                { k: '__right', _spacer: true, _w: window.rightSpacer },
+            ];
+        },
+        /** Pixel width of a `cellColumns` entry (spacers carry their own). */
+        cellWidth(column) { return column._spacer ? column._w : this.columnWidth(column); },
+        /** Inline style for a pinned cell: its sticky left offset. */
+        cellStyle(column) { return column._frozen ? `left:${column._left}px` : ''; },
+        headClass(column) {
+            if (column._spacer) return 'rg-spacer';
+            return [column.align === 'end' && 'rg-end', column._frozen && 'rg-stick rg-frz', column._edge && 'rg-frz-edge']
+                .filter(Boolean).join(' ');
         },
 
-        /** Width resolution: explicit config width → measured content-fit → type heuristic. */
+        /** Width resolution: user-dragged → explicit config width → measured content-fit → type heuristic. */
         columnWidth(column) {
+            if (this.userWidths[column.k]) return this.userWidths[column.k];
             if (column.width) return column.width;
             if (this._contentWidths && this._contentWidths[column.k] != null) return this._contentWidths[column.k];
             return this.heuristicWidth(column);
@@ -927,7 +1059,7 @@ export default function datagrid(config) {
                 : '13px sans-serif';
             const monoFont = '12.5px ui-monospace, Menlo, monospace';
             // Header labels are bold — measure them with the real header font, taken from a rendered <th>.
-            const labelEl = this.$el.querySelector('.rg-th .rg-th-in > span');
+            const labelEl = this.$el.querySelector('.rg-th .rg-th-label');
             const headerFont = labelEl
                 ? (() => { const s = getComputedStyle(labelEl); return `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`; })()
                 : `600 ${baseFont}`;
@@ -937,6 +1069,8 @@ export default function datagrid(config) {
             const HEADER_PADDING = 24;      // .rg-th left+right padding
             const SORT_ICON = 24;           // sort chevron + its gap (always present)
             const FUNNEL_ICON = 22;         // filter funnel (only on filterable columns)
+            const HEADER_GAPS = 6;          // flex gaps between label, sort chevron and funnel
+            const COMPACT_LABEL = 56;       // compactHeaders: minimum visible label width
             const step = Math.max(1, Math.floor(rows.length / 2000)); // sample big datasets
             const widths = {};
             for (const column of this.config.columns) {
@@ -949,14 +1083,24 @@ export default function datagrid(config) {
                 ctx.font = column.mono ? monoFont : baseFont;
                 const cellWidth = ctx.measureText(longest).width + CELL_PADDING + (column.badge ? 20 : 0);
                 ctx.font = headerFont;
-                const headerWidth = ctx.measureText(column.t).width + HEADER_PADDING + SORT_ICON
+                // compactHeaders: the column is sized by its content, not by a long header — the
+                // one-line label is truncated with an ellipsis, keeping at least COMPACT_LABEL px of it.
+                const labelWidth = ctx.measureText(column.t).width;
+                const headerWidth = (this.config.compactHeaders ? Math.min(labelWidth, COMPACT_LABEL) : labelWidth) + HEADER_PADDING + SORT_ICON + HEADER_GAPS
                     + (column.filter ? FUNNEL_ICON : 0);
                 const min = column.minWidth || (column.edit ? 180 : 72);
                 const max = column.maxWidth || 460;
                 widths[column.k] = Math.round(Math.min(max, Math.max(min, Math.ceil(Math.max(cellWidth, headerWidth)))));
             }
             this._contentWidths = widths;
-            this._columnWidths = null; // invalidate the cached width array so the layout picks up the fit
+            this.invalidateLayout(); // the cached width array + pinned offsets must pick up the fit
+        },
+
+        /** Drop cached widths/window so the next recomputeColumnWindow rebuilds everything. */
+        invalidateLayout() {
+            this._columnWidths = null;
+            this._windowSignature = '';
+            this._lastScrollLeft = -1;
         },
 
         toggleColumn(key) {
@@ -978,18 +1122,87 @@ export default function datagrid(config) {
         resetColumns() {
             this.columnOrder = this.config.columns.map((column) => column.k);
             this.visibleKeys = this.config.columns.filter((column) => !column.off).map((column) => column.k);
+            this.frozenKeys = [...(this.config.frozen || [])];
+            this.userWidths = {};
             this.onColumnsChanged();
         },
+        /** Pin / unpin a column; a pinned column is always shown. */
+        togglePin(key) {
+            if (this.frozenKeys.includes(key)) {
+                this.frozenKeys = this.frozenKeys.filter((frozen) => frozen !== key);
+            } else {
+                this.frozenKeys = [...this.frozenKeys, key];
+                if (!this.visibleKeys.includes(key)) this.visibleKeys.push(key);
+            }
+            this.onColumnsChanged();
+        },
+        isPinned(key) { return this.frozenKeys.includes(key); },
+        /** Column picker search (#columns with long lists). */
+        columnMatchesSearch(column) {
+            const needle = this.columnSearch.trim().toLowerCase();
+            return !needle || String(column.t).toLowerCase().includes(needle) || column.k.toLowerCase().includes(needle);
+        },
         onColumnsChanged() {
-            this._columnWidths = null;   // widths changed → recompute the horizontal window
-            this._lastScrollLeft = -1;
-            this.recomputeColumnWindow();
+            this.invalidateLayout();   // widths / pinned set changed → rebuild the horizontal window
+            this.recomputeColumnWindow(true);
             this.persistColumnLayout();
         },
+
+        /* ---------------------- column resize (drag a header edge) ---------------------- */
+
+        /**
+         * Pointer-drag on a header's right edge sets a user width for that column (persisted with
+         * the layout). Pointer capture keeps the drag alive outside the handle; updates are batched
+         * per animation frame. Double-click the edge to go back to the auto-fit width.
+         */
+        startResize(column, event) {
+            const handle = event.currentTarget;
+            const startX = event.clientX;
+            const startWidth = this.columnWidth(column);
+            let frame = 0;
+            let width = startWidth;
+            try { handle.setPointerCapture(event.pointerId); } catch (error) { /* synthetic event */ }
+            document.body.classList.add('rg-resizing');
+
+            const move = (moveEvent) => {
+                width = clampColumnWidth(startWidth + moveEvent.clientX - startX);
+                if (frame) return;
+                frame = requestAnimationFrame(() => {
+                    frame = 0;
+                    this.userWidths = { ...this.userWidths, [column.k]: width };
+                    this.invalidateLayout();
+                    this.recomputeColumnWindow(true);
+                });
+            };
+            const end = () => {
+                handle.removeEventListener('pointermove', move);
+                handle.removeEventListener('pointerup', end);
+                handle.removeEventListener('pointercancel', end);
+                document.body.classList.remove('rg-resizing');
+                if (frame) cancelAnimationFrame(frame);
+                if (width !== startWidth) {
+                    this.userWidths = { ...this.userWidths, [column.k]: width };
+                    this.onColumnsChanged();
+                }
+            };
+            handle.addEventListener('pointermove', move);
+            handle.addEventListener('pointerup', end);
+            handle.addEventListener('pointercancel', end);
+        },
+        resetWidth(key) {
+            if (!(key in this.userWidths)) return;
+            const widths = { ...this.userWidths };
+            delete widths[key];
+            this.userWidths = widths;
+            this.onColumnsChanged();
+        },
+
         persistColumnLayout() {
             const key = this.config.storageKey || 'rg-cols';
             try {
-                localStorage.setItem(key, JSON.stringify({ v: this.visibleKeys, o: this.columnOrder }));
+                localStorage.setItem(key, JSON.stringify({
+                    v: this.visibleKeys, o: this.columnOrder, f: this.frozenKeys, w: this.userWidths, q: this.quickKeys,
+                }));
             } catch (error) { /* */ }
         },
         restoreColumnLayout() {
@@ -1000,28 +1213,100 @@ export default function datagrid(config) {
                 this.columnOrder = saved.o.filter((key) => known.includes(key))
                     .concat(known.filter((key) => !saved.o.includes(key)));
                 this.visibleKeys = saved.v.filter((key) => known.includes(key));
+                // Layouts saved before pinning/resizing/quick filters existed keep the config defaults.
+                if (Array.isArray(saved.f)) this.frozenKeys = saved.f.filter((key) => known.includes(key));
+                if (saved.w && typeof saved.w === 'object') {
+                    const widths = {};
+                    for (const key in saved.w) if (known.includes(key)) widths[key] = clampColumnWidth(saved.w[key]);
+                    this.userWidths = widths;
+                }
+                if (this.quickFiltersEnabled && Array.isArray(saved.q)) {
+                    this.quickKeys = saved.q.filter((key) => this.columnsByKey[key] && this.columnsByKey[key].filter);
+                }
             } catch (error) { /* */ }
+        },
+
+        /* ------------------------- quick-filter bar ------------------------- */
+
+        /** Columns shown as pills on the quick-filter bar (filterable ones only). */
+        get quickColumns() {
+            return this.quickKeys.map((key) => this.columnsByKey[key]).filter((column) => column && column.filter);
+        },
+        /** Filterable columns not yet on the bar, matching the "Add filter" search. */
+        quickCandidates() {
+            const needle = this.quickSearch.trim().toLowerCase();
+            return this.orderedColumns.filter((column) => column.filter && !this.quickKeys.includes(column.k)
+                && (!needle || String(column.t).toLowerCase().includes(needle)));
+        },
+        toggleQuickFilter(key) {
+            this.quickKeys = this.quickKeys.includes(key)
+                ? this.quickKeys.filter((quick) => quick !== key)
+                : [...this.quickKeys, key];
+            this.persistColumnLayout();
+        },
+        /** "Add filter" → put the column on the bar and open its filter under the new pill. */
+        addQuickFilter(column) {
+            this.quickMenuOpen = false;
+            if (!this.quickKeys.includes(column.k)) this.toggleQuickFilter(column.k);
+            this.$nextTick(() => {
+                const pill = [...this.$el.querySelectorAll('[data-quick-key]')].find((element) => element.dataset.quickKey === column.k);
+                if (pill) this.openFilterAt(column, pill.getBoundingClientRect());
+            });
+        },
+        /** How many things a column filter narrows by — the count badge on its pill. */
+        filterCount(key) {
+            const value = this.columnFilters[key];
+            if (isEmptyFilterValue(value)) return 0;
+            if (Array.isArray(value)) return value.length;
+            if (typeof value === 'object') {
+                const picked = Array.isArray(value.in) ? value.in.length : 0;
+                const ranged = Object.entries(value).some(([bound, item]) => bound !== 'in' && !isEmptyFilterValue(item));
+                return picked + (ranged ? 1 : 0);
+            }
+            return 1;
         },
 
         /* ------------------------- per-column filters ------------------------- */
 
         filterIsActive(column) {
-            const value = this.columnFilters[column.k];
-            if (!value) return false;
-            if (Array.isArray(value)) return value.length > 0;
-            if (typeof value === 'object') return Object.values(value).some((v) => v !== '' && v != null);
-            return true;
+            return !isEmptyFilterValue(this.columnFilters[column.k]);
         },
         openFilter(column, event) {
             if (this.filterColumn && this.filterColumn.k === column.k) { this.filterColumn = null; return; }
+            this.openFilterAt(column, event.currentTarget.getBoundingClientRect());
+        },
+        /** Open the filter popover for a column under an anchor rect (header funnel, bar pill, chip). */
+        openFilterAt(column, rect) {
             this.filterOptionSearch = '';
-            this.filterColumn = column;
+            this.filterColumn = this.columnsByKey[column.k] || column;
             // Seed draft z zatwierdzonej wartości (głęboka kopia), bez dotykania columnFilters.
             const current = this.columnFilters[column.k];
             this.filterDraft = { [column.k]: current == null ? null : JSON.parse(JSON.stringify(current)) };
-            const rect = event.currentTarget.getBoundingClientRect();
-            this.filterStyle = `top:${rect.bottom + 4}px;left:${Math.max(8, rect.left - 40)}px`;
-            if (this.config.server && column.filter === 'select') this.fetchServerOptions(column.k);
+            const left = Math.min(Math.max(8, rect.left - 40), Math.max(8, window.innerWidth - 280));
+            this.filterStyle = `top:${rect.bottom + 4}px;left:${left}px`;
+            if (this.config.server && (column.filter === 'select' || column.filter === 'num')) this.fetchServerOptions(column.k);
+        },
+        /** Num filters offer a pick-list of the column's values next to the range, unless turned off. */
+        numValueList(column) {
+            if (!column || column.filter !== 'num' || column.valueList === false || this.config.numValueList === false) return false;
+            const values = this.distinctFor(column.k);
+            return values.length > 0 && values.length <= (this.config.numValueListMax || 500);
+        },
+        toggleNumValue(key, value) {
+            const draft = { ...(this.filterDraft[key] || {}) };
+            const picked = Array.isArray(draft.in) ? [...draft.in] : [];
+            const index = picked.indexOf(value);
+            if (index >= 0) picked.splice(index, 1);
+            else picked.push(value);
+            draft.in = picked;
+            this.filterDraft[key] = draft;
+        },
+        numValuePicked(key, value) {
+            const draft = this.filterDraft[key];
+            return !!draft && Array.isArray(draft.in) && draft.in.includes(value);
+        },
+        optionMatches(option) {
+            return !this.filterOptionSearch || String(option.label).toLowerCase().includes(this.filterOptionSearch.toLowerCase());
         },
         /** Tryb serwerowy: opcje filtra select pobierane leniwie z backendu. */
         fetchServerOptions(field) {
@@ -1033,16 +1318,19 @@ export default function datagrid(config) {
         distinctFor(field) {
             if (this.config.server) return this._serverOptions[field] || [];
             if (!this._distinctCache[field]) {
-                const rows = this.source.loadedRows() || [];
-                this._distinctCache[field] = distinctValues(rows, field);
+                const rows = (this.source && this.source.loadedRows()) || [];
+                const column = this.columnsByKey[field];
+                this._distinctCache[field] = distinctValues(rows, field, !!column && column.filter === 'num');
             }
             return this._distinctCache[field];
         },
         filterOptions(column) {
+            const numeric = column.filter === 'num';
+            const label = (value) => (numeric ? formatNumber(value, this.locale) : valueLabel(column, value));
             // Backend może zwrócić skalary lub obiekty {value,label} (np. sentinel „(puste)").
             return this.distinctFor(column.k).map((item) => (item && typeof item === 'object')
-                ? { value: item.value, label: item.label ?? valueLabel(column, item.value) }
-                : { value: item, label: valueLabel(column, item) });
+                ? { value: String(item.value), label: item.label ?? label(item.value) }
+                : { value: String(item), label: label(item) });
         },
         // Filtry są ODROCZONE: edycja trafia do draftu dla otwartej kolumny,
         // a widok odświeża się dopiero po „Zastosuj" (applyFilter). Zamknięcie
@@ -1068,10 +1356,7 @@ export default function datagrid(config) {
 
         /** Czy wartość filtra jest „pusta" (nic nie zawęża). */
         filterValueEmpty(value) {
-            if (value == null) return true;
-            if (Array.isArray(value)) return value.length === 0;
-            if (typeof value === 'object') return !Object.values(value).some((v) => v !== '' && v != null);
-            return value === '';
+            return isEmptyFilterValue(value);
         },
 
         /** „Zastosuj": zatwierdź draft otwartej kolumny i odśwież widok. */
@@ -1110,11 +1395,29 @@ export default function datagrid(config) {
             return names.slice(0, 3).join(', ') + ' +' + (names.length - 3);
         },
 
-        /** Wyczyść wszystkie filtry kolumn naraz. */
-        clearAllFilters() {
+        /** Wyczyść wszystkie filtry kolumn naraz (`withSearch` — także wyszukiwanie). */
+        clearAllFilters(withSearch = false) {
             this.columnFilters = {};
             this.filterDraft = {};
             this.filterColumn = null;
+            if (withSearch) this.searchQuery = '';
+            this.applyView();
+        },
+
+        /** Czy cokolwiek zawęża widok (filtry kolumn lub wyszukiwanie). */
+        isNarrowed() {
+            return this.activeFilterCount() > 0 || !!this.searchQuery;
+        },
+
+        /** `filterChips`: one removable chip per active column filter, `{key, label, text}`. */
+        filterChips() {
+            return this.activeFilterKeys().map((key) => {
+                const column = this.columnsByKey[key] || { k: key, t: key };
+                return { key, label: column.t, text: describeFilterValue(column, this.columnFilters[key], this.locale) };
+            });
+        },
+        clearSearch() {
+            this.searchQuery = '';
             this.applyView();
         },
 
@@ -1206,6 +1509,8 @@ export default function datagrid(config) {
         },
         cellClass(column, row) {
             return [
+                column._frozen && 'rg-stick rg-frz',
+                column._edge && 'rg-frz-edge',
                 column.align === 'end' && 'rg-end',
                 column.mono && 'rg-mono',
                 column.bold && 'rg-bold',
@@ -1287,23 +1592,39 @@ export default function datagrid(config) {
 
         /* ------------------------- export ------------------------- */
 
-        exportFile(extension) {
+        /**
+         * Export the visible columns of the current view. `selectedOnly` narrows it to the checked
+         * rows (kept in view order); "select all" in server mode still exports the whole filtered set.
+         */
+        exportFile(extension, selectedOnly = false) {
             const withLabels = !!this.config.exportLabels;
             const columns = this.visibleColumns.map((column) => ({
                 key: column.k,
                 label: column.t,
                 ...(withLabels && column.valueLabels ? { valueLabels: column.valueLabels } : {}),
             }));
-            // Server mode: no client-side id list — the backend re-runs the filtered query.
-            const body = this.config.server
-                ? { server: 1, columns, search: this.searchQuery, filters: this.columnFilters, sort: this.sort }
-                : { ids: this.source.viewIds(), columns };
+            const explicitSelection = selectedOnly && !this.allFiltered && this.selectedIds.length > 0;
+            let body;
+            if (explicitSelection) {
+                const chosen = new Set(this.selectedIds);
+                const viewIds = this.source.viewIds();
+                body = { ids: viewIds ? viewIds.filter((id) => chosen.has(id)) : [...this.selectedIds], columns };
+            } else if (this.config.server) {
+                // Server mode: no client-side id list — the backend re-runs the filtered query.
+                body = { server: 1, columns, search: this.searchQuery, filters: this.columnFilters, sort: this.sort };
+            } else {
+                body = { ids: this.source.viewIds(), columns };
+            }
             fetch(this.config.exportUrl + '.' + extension, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.config.csrf },
                 body: JSON.stringify(body),
             })
-                .then((response) => response.blob())
+                .then((response) => {
+                    // Never hand an error page (419 expired session, 500…) to the user as the file.
+                    if (!response.ok) throw Object.assign(new Error(`Export failed (${response.status})`), { status: response.status });
+                    return response.blob();
+                })
                 .then((blob) => {
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
@@ -1313,7 +1634,18 @@ export default function datagrid(config) {
                     link.click();
                     link.remove();
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
+                })
+                .catch((error) => {
+                    console.error(error);
+                    const messages = this.config.i18n || {};
+                    this.notifyError(error.status === 419
+                        ? (messages.sessionExpired || 'Session expired — reload the page and try again.')
+                        : (messages.exportFailed || 'Export failed.'));
                 });
+        },
+        notifyError(message) {
+            if (window.FilamentNotification) new window.FilamentNotification().title(message).danger().send();
+            else window.alert(message);
         },
 
         /* ------------------------- external events ------------------------- */
@@ -1322,6 +1654,7 @@ export default function datagrid(config) {
             await this.source.load();
             this.computeContentWidths();
             this._distinctCache = {};
+            this.recomputeColumnWindow(true);
             this.selectedIds = [];
             this.allFiltered = false;
             this.applyView();

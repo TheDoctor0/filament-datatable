@@ -27,9 +27,14 @@ the grid as plain row fields — see [Derived row fields](#derived-row-fields).
   (only the columns inside the horizontal viewport are rendered), so wide, long grids stay responsive.
 - **Client or server row source** — the same grid API (`rowAt`/`total`/`setView`) backs an in-browser
   source and a DataTables-style server source, selected by config.
-- **Column picker** — show/hide columns, drag to reorder, reset to defaults; the layout is persisted in
-  `localStorage`.
-- **Per-column filters** — text (contains), number range, date range, datetime range and multi-select.
+- **Column picker** — search, show/hide, pin, drag to reorder, reset to defaults; the layout (visibility,
+  order, pins, widths, quick filters) is persisted in `localStorage`.
+- **Per-column filters** — text (contains), number range plus a pick-list of values, date range, datetime range
+  and multi-select. Filters apply on "Apply"; active ones show as a badge or as removable chips.
+- **Quick-filter bar** — chosen filters one click away above the grid; any filterable column can be added.
+- **Pinned columns + sticky actions** — pin columns to the left (sticky while scrolling sideways) and keep
+  the actions column on the right edge.
+- **Column resize** — drag a header edge; widths persist with the layout.
 - **Value labels** — map raw cell values (enum codes, ids) to display labels per column; used in cells,
   filter options and badges.
 - **Auto-fit column widths** — the widest rendered value per column is measured against the real cell
@@ -120,7 +125,9 @@ In **client mode** (the default) `dataUrl` is fetched once with `GET` and must r
 row objects. Every row needs a unique `id` field (used for selection, row actions and export).
 
 The grid also listens for two `window` events: dispatch `rg-export` with `detail.format` (`csv` /
-`xlsx`) to trigger an export, and `rg-refresh` to reload the data.
+`xlsx`, plus `detail.selected: true` to export only the checked rows) to trigger an export, and
+`rg-refresh` to reload the data. A failed export (e.g. an expired session, 419) shows a Filament
+notification instead of downloading the error page.
 
 ## Configuration reference
 
@@ -149,6 +156,16 @@ The grid also listens for two `window` events: dispatch `rg-export` with `detail
 | `storageKey`         | string            | `localStorage` key for the persisted column layout. Defaults to `rg-cols`. |
 | `tree`               | `{column, childrenUrl, indent?}` | Tree mode (see below). `column` is the key of the column that gets the expand chevron and indent; `indent` is px per level (default `18`). Disables selection. |
 | `urlState`           | `true` \| `{prefix}` | Mirror search (`q`), sort (`sort=key:dir`) and column filters (`f`, JSON) in the query string. `prefix` namespaces the params when a page has several grids. |
+| `frozen`             | `string[]`        | Column keys pinned to the left by default. Pinned columns stay visible (sticky) while scrolling sideways; users pin/unpin any column in the column picker. Persisted with the layout. |
+| `stickyActions`      | bool              | Keep the row-actions column stuck to the right edge. Defaults to `false`. |
+| `pinMinViewport`     | number            | Below this viewport width (px) pinned columns and sticky actions scroll normally. Defaults to `640`. |
+| `resizable`          | bool              | Users can drag a header's right edge to resize a column (double-click = back to auto-fit). Widths are persisted with the layout. Defaults to `true`. |
+| `compactHeaders`     | bool              | Size columns by their content, not their header: long labels are truncated with an ellipsis (full text in the tooltip). Defaults to `false`. |
+| `quickFilters`       | `string[]`        | Enables the quick-filter bar with these columns as default pills. Users add any filterable column ("Add filter") or remove pills; the set is persisted with the layout. |
+| `filterChips`        | bool              | Show one removable chip per active filter (and the search) next to the search box, plus "Clear filters", instead of the single summary badge. Clicking a chip reopens its filter. |
+| `bulkExport`         | `string[]`        | Built-in "Export selected" buttons on the bulk bar, e.g. `['xlsx', 'csv']`. Implies `selectable`. Exports only the checked rows, in view order. |
+| `numValueList`       | bool              | `num` filters also offer a pick-list of the column's values (ANDed with the range). Defaults to `true`; per column `valueList: false` turns it off. |
+| `numValueListMax`    | number            | Hide the num pick-list when a column has more distinct values than this. Defaults to `500`. |
 
 ### Column definition
 
@@ -157,7 +174,8 @@ The grid also listens for two `window` events: dispatch `rg-export` with `detail
 | `k`           | string            | Row field key. Required. |
 | `t`           | string            | Header label. Required. |
 | `type`        | string            | Cell rendering: `text` (default), `num` (locale number), `sign` (signed number, positive/negative styled), `date`, `datetime`. |
-| `filter`      | string            | Filter control: `text`, `num`, `date`, `datetime`, `select`. Omit for no filter. |
+| `filter`      | string            | Filter control: `text`, `num`, `date`, `datetime`, `select`. Omit for no filter. A `num` filter value is `{min?, max?, in?: [...]}`; empty cells never match an active num filter. |
+| `valueList`   | bool              | `num` filter only: `false` hides the value pick-list for this column. |
 | `valueLabels` | `{raw: label}`    | Display label per raw value — applied to the cell text and to `select` filter options. Filtering still matches the raw value. |
 | `edit`        | bool \| string   | Render the cell as an editable text input. A string is a row field name: the cell is editable only in rows where that field is truthy (plain text elsewhere). |
 | `placeholder` | string            | Placeholder of the inline-edit input. |
