@@ -23,6 +23,7 @@
         cursor:pointer;line-height:1.3;}
     .rg-btn-outline:hover{background:var(--rg-hover);border-color:var(--rg-primary);}
     .rg-dd{position:relative;margin-left:auto;}
+    .rg-tools-end{display:flex;gap:8px;align-items:center;margin-left:auto;}
     .rg-colsbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rg-line);background:var(--rg-bg);
         color:var(--rg-fg);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1.3;}
     .rg-colsbtn:hover{background:var(--rg-hover);border-color:var(--rg-primary);color:var(--rg-primary);}
@@ -66,6 +67,24 @@
     .rg-mono{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;}
     /* Editable cells: compact so the row keeps the same 42px height as the other grids. */
     .rg-edit{overflow:visible;padding:0 6px;}
+    .rg-tree{display:flex;align-items:center;gap:4px;min-width:0;}
+    .rg-tree-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rg-chev{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;
+        color:var(--rg-muted);cursor:pointer;background:transparent;border:0;padding:0;}
+    .rg-chev:hover{background:var(--rg-hover);color:var(--rg-primary);}
+    .rg-chev:focus-visible{outline:2px solid var(--rg-primary);outline-offset:1px;}
+    .rg-chev svg{transition:transform .12s ease;}
+    .rg-chev.open svg{transform:rotate(90deg);}
+    .rg-chev-gap{flex:none;width:22px;}
+    .rg-spin{width:12px;height:12px;border:2px solid var(--rg-line);border-top-color:var(--rg-primary);border-radius:50%;
+        animation:rg-spin .7s linear infinite;}
+    @keyframes rg-spin{to{transform:rotate(360deg);}}
+    .rg-lvl-0 .rg-tree-txt{font-weight:600;}
+    .rg-lvl-1 td{background:var(--rg-lvl1,rgba(17,24,39,.025));}
+    .rg-lvl-2 td{background:var(--rg-lvl2,rgba(11,112,153,.045));}
+    :where(.dark) .rg-lvl-1 td{background:var(--rg-lvl1,rgba(255,255,255,.03));}
+    :where(.dark) .rg-lvl-2 td{background:var(--rg-lvl2,rgba(56,189,248,.06));}
+    .rg-row.rg-lvl-1:hover td,.rg-row.rg-lvl-2:hover td{background:var(--rg-hover);}
     .rg-edit .fi-ta-text-input{padding:0;display:flex;align-items:center;height:42px;min-width:0;}
     .rg-edit .fi-input-wrp{min-height:0!important;height:30px!important;width:100%;max-width:100%;}
     .rg-edit .fi-input{width:100%;min-width:0;height:30px!important;padding:2px 8px;font-size:13px;line-height:1.2;}

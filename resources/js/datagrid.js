@@ -312,8 +312,252 @@ export class ServerRowSource {
     viewIds() { return null; }      // server mode: export re-runs the query server-side
 }
 
+/**
+ * TreeRowSource: wraps a client/server source of top-level rows and splices lazily loaded
+ * children in under expanded rows. Rows carry `_key` (unique in the tree), `_level` and
+ * `_hasChildren`; `_q` is opaque backend data echoed back when fetching a row's children.
+ *
+ * Visible order is: top row, its open descendants (depth-first), next top row… Each expanded
+ * top row owns a segment `{topIndex, key, flat}` where `flat` is its visible descendants, so
+ * `rowAt` maps a visual index to (top row | child) with a walk over the open segments only.
+ */
+export class TreeRowSource {
+    constructor(inner, config) {
+        this.inner = inner;
+        this.config = config;
+        this.children = new Map();   // key → direct children (cache, cleared on setView)
+        this.open = new Set();       // expanded keys
+        this.loading = new Set();    // keys whose children are being fetched
+        this.segments = [];          // [{topIndex, key, flat}] sorted by topIndex
+        this.generation = 0;
+        this.query = { searchQuery: '', columnFilters: {}, sort: {} };
+    }
+
+    get mode() { return this.inner.mode; }
+    get onWindowLoaded() { return this.inner.onWindowLoaded; }
+    set onWindowLoaded(callback) { this.inner.onWindowLoaded = callback; }
+
+    reset() {
+        this.generation += 1;
+        this.children.clear();
+        this.open.clear();
+        this.loading.clear();
+        this.segments = [];
+    }
+
+    async load() {
+        this.reset();
+        await this.inner.load();
+    }
+
+    setView(query) {
+        this.query = query;
+        this.reset();
+        return this.inner.setView(query);
+    }
+
+    total() {
+        let extra = 0;
+        for (const segment of this.segments) extra += segment.flat.length;
+        return this.inner.total() + extra;
+    }
+
+    rowAt(index) {
+        let offset = 0;
+        for (const segment of this.segments) {
+            const topPosition = segment.topIndex + offset;
+            if (index <= topPosition) break;
+            if (index <= topPosition + segment.flat.length) return segment.flat[index - topPosition - 1];
+            offset += segment.flat.length;
+        }
+        const topIndex = index - offset;
+        const row = this.inner.rowAt(topIndex);
+        if (row) row._top = topIndex;
+        return row;
+    }
+
+    isOpen(row) { return !!row && this.open.has(row._key); }
+    isLoading(row) { return !!row && this.loading.has(row._key); }
+    hasOpen() { return this.open.size > 0; }
+
+    async toggle(row) {
+        if (!row || !row._hasChildren) return;
+        if (this.open.has(row._key)) {
+            this.closeBranch(row._key);
+            this.rebuildSegment(row);
+            return;
+        }
+        if (!this.children.has(row._key)) {
+            const gen = this.generation;
+            this.loading.add(row._key);
+            let rows;
+            try {
+                rows = await this.fetchChildren(row);
+            } finally {
+                if (gen === this.generation) this.loading.delete(row._key);
+            }
+            if (gen !== this.generation) return;
+            this.children.set(row._key, rows);
+        }
+        this.open.add(row._key);
+        this.rebuildSegment(row);
+    }
+
+    closeBranch(key) {
+        this.open.delete(key);
+        for (const child of this.children.get(key) || []) {
+            if (this.open.has(child._key)) this.closeBranch(child._key);
+        }
+    }
+
+    collapseAll() {
+        this.open.clear();
+        this.segments = [];
+    }
+
+    async fetchChildren(row) {
+        const response = await fetch(this.config.tree.childrenUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.config.csrf },
+            body: JSON.stringify({
+                parent: row._key,
+                q: row._q ?? null,
+                search: this.query.searchQuery || '',
+                filters: this.query.columnFilters || {},
+                sort: this.query.sort || {},
+            }),
+        });
+        if (!response.ok) throw new Error(`Tree children request failed (${response.status})`);
+        const data = await response.json();
+        const rootIndex = row._level === 0 || row._level == null ? row._top : row._root;
+        const rootKey = row._level === 0 || row._level == null ? row._key : row._rootKey;
+        for (const child of data.rows || []) {
+            child._search = '';
+            child._root = rootIndex;
+            child._rootKey = rootKey;
+        }
+        return data.rows || [];
+    }
+
+    flatten(key, out = []) {
+        for (const child of this.children.get(key) || []) {
+            out.push(child);
+            if (this.open.has(child._key)) this.flatten(child._key, out);
+        }
+        return out;
+    }
+
+    rebuildSegment(row) {
+        const isTop = row._level === 0 || row._level == null;
+        const topIndex = isTop ? row._top : row._root;
+        const key = isTop ? row._key : row._rootKey;
+        const flat = this.open.has(key) ? this.flatten(key) : [];
+        const segments = this.segments.filter((segment) => segment.topIndex !== topIndex);
+        if (flat.length > 0) segments.push({ topIndex, key, flat });
+        segments.sort((a, b) => a.topIndex - b.topIndex);
+        this.segments = segments;
+    }
+
+    loadedRows() { return this.inner.loadedRows(); }
+    viewIds() { return this.inner.viewIds(); }
+}
+
 export function makeRowSource(config) {
-    return config.server ? new ServerRowSource(config) : new ClientRowSource(config);
+    const source = config.server ? new ServerRowSource(config) : new ClientRowSource(config);
+    return config.tree ? new TreeRowSource(source, config) : source;
+}
+
+/* ------------------------------------------------------------------ *
+ * Grid state in the URL (search, column filters, sort)                *
+ * ------------------------------------------------------------------ */
+
+const isText = (value) => typeof value === 'string' || typeof value === 'number';
+
+/** Validates one filter value against its column's filter kind; returns the cleaned value or null. */
+export function cleanFilterValue(kind, value) {
+    if (value == null) return null;
+    if (kind === 'select') {
+        if (!Array.isArray(value)) return null;
+        const values = value.filter(isText).map(String);
+        return values.length > 0 ? values : null;
+    }
+    if (kind === 'text') {
+        return isText(value) && String(value) !== '' ? String(value) : null;
+    }
+    if (typeof value !== 'object' || Array.isArray(value)) return null;
+    const bounds = kind === 'num' ? ['min', 'max'] : kind === 'date' || kind === 'datetime' ? ['od', 'do'] : null;
+    if (!bounds) return null;
+    const range = {};
+    for (const bound of bounds) {
+        const raw = value[bound];
+        if (raw == null || raw === '') continue;
+        if (kind === 'num' ? !Number.isFinite(Number(raw)) : typeof raw !== 'string') continue;
+        range[bound] = String(raw);
+    }
+    return Object.keys(range).length > 0 ? range : null;
+}
+
+/**
+ * Reads `{prefix}q`, `{prefix}sort` (key:asc|desc) and `{prefix}f` (JSON filters) from a query
+ * string. Unknown columns, columns without a filter and wrongly shaped values are dropped, so
+ * stale or hand-edited links never break the grid. Only the keys present in the URL are returned.
+ */
+export function parseGridState(params, columnsByKey, prefix = '') {
+    const search = typeof params === 'string' ? new URLSearchParams(params) : params;
+    const state = {};
+
+    if (search.has(prefix + 'q')) state.searchQuery = search.get(prefix + 'q') || '';
+
+    const sort = search.get(prefix + 'sort');
+    if (sort) {
+        const [key, dir] = sort.split(':');
+        if (columnsByKey[key] && (dir === 'asc' || dir === 'desc')) state.sort = { key, dir };
+    }
+
+    const filters = search.get(prefix + 'f');
+    if (filters) {
+        let parsed = null;
+        try { parsed = JSON.parse(filters); } catch (error) { /* malformed link */ }
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const clean = {};
+            for (const key in parsed) {
+                const column = columnsByKey[key];
+                if (!column || !column.filter) continue;
+                const value = cleanFilterValue(column.filter, parsed[key]);
+                if (value != null) clean[key] = value;
+            }
+            state.columnFilters = clean;
+        }
+    }
+    return state;
+}
+
+/**
+ * Writes the grid state into `params` (a URLSearchParams, mutated and returned). Empty values
+ * and a sort equal to `defaultSort` are removed so the default view keeps a clean URL.
+ */
+export function serializeGridState(params, { searchQuery, columnFilters, sort }, defaultSort = null, prefix = '') {
+    if (searchQuery) params.set(prefix + 'q', searchQuery);
+    else params.delete(prefix + 'q');
+
+    const isDefault = !sort || !sort.key
+        || (defaultSort && defaultSort.key === sort.key && (defaultSort.dir || 'asc') === sort.dir);
+    if (isDefault) params.delete(prefix + 'sort');
+    else params.set(prefix + 'sort', `${sort.key}:${sort.dir}`);
+
+    const active = {};
+    for (const key in columnFilters || {}) {
+        const value = columnFilters[key];
+        if (value == null || (Array.isArray(value) && value.length === 0)) continue;
+        if (typeof value === 'object' && !Array.isArray(value)
+            && !Object.values(value).some((v) => v !== '' && v != null)) continue;
+        if (value === '') continue;
+        active[key] = value;
+    }
+    if (Object.keys(active).length > 0) params.set(prefix + 'f', JSON.stringify(active));
+    else params.delete(prefix + 'f');
+
+    return params;
 }
 
 /* ------------------------------------------------------------------ *
@@ -347,6 +591,12 @@ export const ACTION_ICONS = {
 export default function datagrid(config) {
     // Index columns by key once; reused by the row source and the render layer.
     config._columnsByKey = Object.fromEntries((config.columns || []).map((column) => [column.k, column]));
+
+    if (config.tree && (config.selectable || (config.bulkActions || []).length > 0)) {
+        console.warn('[datagrid] tree mode does not support selection; selectable/bulkActions are ignored.');
+        config.selectable = false;
+        config.bulkActions = [];
+    }
 
     return {
         config,
@@ -403,6 +653,9 @@ export default function datagrid(config) {
         _distinctCache: {},
         serverSummary: null,      // {count, sums} — tryb serwerowy
         _serverOptions: {},       // field → distinct values (tryb serwerowy)
+        tree: config.tree || null,   // {column, childrenUrl, indent?}
+        treeRevision: 0,          // bumped on expand/collapse so tree-dependent bindings re-evaluate
+        urlPrefix: config.urlState ? ((config.urlState && config.urlState.prefix) || '') : null,
 
         openRow(row) {
             if (row && this.rowUrl) window.location.href = this.rowUrl.replace(':id', row.id);
@@ -414,6 +667,7 @@ export default function datagrid(config) {
             this.hydrated = true;
             this.restoreColumnLayout();
             this.restoreSharedSearch();
+            this.restoreUrlState();
             this.recomputePoolSize();
             this.recomputeColumnWindow();   // bound the skeleton's columns to the viewport too
             this.source = makeRowSource(this.config);
@@ -458,6 +712,8 @@ export default function datagrid(config) {
          */
         applyView() {
             this.persistSharedSearch();
+            this.persistUrlState();
+            this.treeRevision++;
             Promise.resolve(this.source.setView({
                 searchQuery: this.searchQuery,
                 columnFilters: this.columnFilters,
@@ -486,6 +742,7 @@ export default function datagrid(config) {
 
         /** The fixed-length array the template iterates; slot i shows row (firstIndex + i). */
         get windowRows() {
+            this.treeRevision;
             const rows = [];
             for (let slot = 0; slot < this.poolSize; slot++) {
                 rows.push(this.source.rowAt(this.firstIndex + slot) ?? null);
@@ -545,6 +802,54 @@ export default function datagrid(config) {
         },
         persistSharedSearch() {
             try { localStorage.setItem('ls-search', this.searchQuery || ''); } catch (error) { /* */ }
+        },
+
+        /* ------------------------- URL state ------------------------- */
+
+        restoreUrlState() {
+            if (this.urlPrefix === null) return;
+            const state = parseGridState(window.location.search, this.columnsByKey, this.urlPrefix);
+            if (state.searchQuery !== undefined) this.searchQuery = state.searchQuery;
+            if (state.sort) this.sort = state.sort;
+            if (state.columnFilters) this.columnFilters = state.columnFilters;
+        },
+        persistUrlState() {
+            if (this.urlPrefix === null) return;
+            try {
+                const url = new URL(window.location.href);
+                serializeGridState(url.searchParams, {
+                    searchQuery: this.searchQuery,
+                    columnFilters: this.columnFilters,
+                    sort: this.sort,
+                }, this.config.sort || null, this.urlPrefix);
+                if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url);
+            } catch (error) { /* history unavailable */ }
+        },
+
+        /* ------------------------- tree ------------------------- */
+
+        isTreeColumn(column) { return !!this.tree && column.k === this.tree.column; },
+        treeIndent(row) { return row ? (row._level || 0) * (this.tree.indent || 18) : 0; },
+        isExpanded(row) { this.treeRevision; return this.source.isOpen(row); },
+        isTreeLoading(row) { this.treeRevision; return this.source.isLoading(row); },
+        hasExpanded() { this.treeRevision; return !!this.tree && !!this.source && this.source.hasOpen(); },
+        treeRowClass(row) { return this.tree && row ? `rg-lvl-${row._level || 0}` : ''; },
+        toggleRow(row) {
+            if (!this.tree || !row || !row._hasChildren) return;
+            const done = this.source.toggle(row);
+            this.afterTreeChange();
+            done.then(() => this.afterTreeChange(), (error) => { console.error(error); this.afterTreeChange(); });
+        },
+        collapseAll() {
+            if (!this.tree) return;
+            this.source.collapseAll();
+            this.afterTreeChange();
+        },
+        afterTreeChange() {
+            this.treeRevision++;
+            const maxFirst = Math.max(0, this.source.total() - this.poolSize);
+            if (this.firstIndex > maxFirst) this.firstIndex = maxFirst;
+            this.recomputePadding();
         },
 
         /* ------------------------- sorting ------------------------- */
@@ -886,6 +1191,7 @@ export default function datagrid(config) {
             const raw = row[column.k];
             if (column.type === 'datetime') return { text: formatDateTime(raw), cls: '', title: '' };
             if (column.type === 'date') return { text: formatDate(raw), cls: '', title: '' };
+            if ((column.type === 'num' || column.type === 'sign') && (raw == null || raw === '')) return EMPTY_CELL;
             if (column.type === 'num') return { text: formatNumber(raw, this.locale), cls: '', title: '' };
             if (column.type === 'sign') {
                 const n = Number(raw) || 0;
@@ -898,13 +1204,19 @@ export default function datagrid(config) {
             }
             return { text: String(value ?? ''), cls: '', title: '' };
         },
-        cellClass(column) {
+        cellClass(column, row) {
             return [
                 column.align === 'end' && 'rg-end',
                 column.mono && 'rg-mono',
                 column.bold && 'rg-bold',
-                column.edit && 'rg-edit',
+                this.canEdit(column, row) && 'rg-edit',
+                this.isTreeColumn(column) && 'rg-tree-cell',
             ].filter(Boolean).join(' ');
+        },
+        /** `column.edit`: true = every row; a string = only rows where that field is truthy. */
+        canEdit(column, row) {
+            if (typeof column.edit === 'string') return !!row && !!row[column.edit];
+            return !!column.edit;
         },
 
         /* ------------------------- editable cells ------------------------- */

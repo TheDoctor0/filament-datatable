@@ -41,6 +41,10 @@ the grid as plain row fields — see [Derived row fields](#derived-row-fields).
 - **Summary bar** — row count and per-field sums over the current (filtered) view.
 - **Row click** — an optional `rowUrl` opens a row on click.
 - **Bulk selection** — an optional checkbox column with select-all.
+- **Tree rows** — expandable rows whose children are fetched lazily from the backend, any depth, with a
+  "Collapse all" toolbar button.
+- **URL state** — search, column filters and sort mirrored in the query string, so a filtered view can
+  be bookmarked or shared.
 - **Localised** — UI strings ship in English and Polish (`filament-datatable::datagrid.*`) and follow the
   app locale; number formatting uses the `locale` config option.
 - **CSV / XLSX export** — the visible columns are streamed by the backend; CSV is UTF-8 with a BOM and a
@@ -143,6 +147,8 @@ The grid also listens for two `window` events: dispatch `rg-export` with `detail
 | `summary`            | array             | Summary bar items (see below). Omit or leave empty to hide the bar. |
 | `actionsColumnWidth` | number            | Width (px) of the actions column. Defaults to `370`. |
 | `storageKey`         | string            | `localStorage` key for the persisted column layout. Defaults to `rg-cols`. |
+| `tree`               | `{column, childrenUrl, indent?}` | Tree mode (see below). `column` is the key of the column that gets the expand chevron and indent; `indent` is px per level (default `18`). Disables selection. |
+| `urlState`           | `true` \| `{prefix}` | Mirror search (`q`), sort (`sort=key:dir`) and column filters (`f`, JSON) in the query string. `prefix` namespaces the params when a page has several grids. |
 
 ### Column definition
 
@@ -153,7 +159,8 @@ The grid also listens for two `window` events: dispatch `rg-export` with `detail
 | `type`        | string            | Cell rendering: `text` (default), `num` (locale number), `sign` (signed number, positive/negative styled), `date`, `datetime`. |
 | `filter`      | string            | Filter control: `text`, `num`, `date`, `datetime`, `select`. Omit for no filter. |
 | `valueLabels` | `{raw: label}`    | Display label per raw value — applied to the cell text and to `select` filter options. Filtering still matches the raw value. |
-| `edit`        | bool              | Render the cell as an editable text input. |
+| `edit`        | bool \| string   | Render the cell as an editable text input. A string is a row field name: the cell is editable only in rows where that field is truthy (plain text elsewhere). |
+| `placeholder` | string            | Placeholder of the inline-edit input. |
 | `badge`       | bool              | Render the value as a badge. |
 | `badgeColors` | `{raw: color}`    | Per-value badge colour map, keyed by the raw value. |
 | `badgeColor`  | string            | Fallback badge colour. Defaults to `info`. |
@@ -269,6 +276,51 @@ Your endpoint must respond with:
 `draw` echoes the request and guards against out-of-order responses (the DataTables convention). The
 grid requests further blocks (`start` advancing by `length`) as the viewport scrolls. In server mode
 `preFilter`, `select` filter options and `summary` sums are the backend's responsibility.
+
+## Tree rows
+
+With `tree` set, rows returned by the row source are the top level of a tree. Each row carries:
+
+| Field          | Description |
+| -------------- | ----------- |
+| `_key`         | Unique key of the row within the whole tree. |
+| `_level`       | Depth, `0` for top-level rows. Adds the `rg-lvl-{n}` class to the row. |
+| `_hasChildren` | Whether the row shows an expand chevron. |
+| `_q`           | Optional opaque data echoed back to the backend when the row's children are requested. |
+
+Expanding a row `POST`s to `tree.childrenUrl`:
+
+```json
+{ "parent": "K:0001", "q": { "kod": "0001" }, "search": "…", "filters": { }, "sort": { "key": "saldo", "dir": "desc" } }
+```
+
+and expects `{ "rows": [ … ] }` with the direct children (each with its own `_key`, `_level`,
+`_hasChildren`). Children are cached until the view changes; any change of search, filters or sort
+collapses the tree. Inline edits and row actions work on child rows as on top-level ones — gate them
+with `edit: '<field>'` and `when`.
+
+## URL state
+
+With `urlState: true` the grid writes its search, column filters and sort into the page URL through
+`history.replaceState` (no new history entries) and reads them back on load:
+
+```
+/admin/orders?q=acme&sort=total:desc&f={"status":["open"],"total":{"min":"100"}}
+```
+
+A sort equal to the configured default and empty filters are left out. On load the URL wins over the
+search remembered in `localStorage`, which wins over the config. Unknown columns, columns without a
+filter and wrongly shaped values are ignored, so stale or hand-edited links never break the grid. The
+column layout stays in `localStorage`.
+
+## Development
+
+Pure helpers and row sources are exported from `resources/js/datagrid.js` and tested with Node's
+built-in runner:
+
+```bash
+node --test tests/js/*.test.mjs
+```
 
 ## Export (backend)
 

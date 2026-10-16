@@ -24,4 +24,7 @@ return [
     'bulk_apply' => 'Zapisz',
     'bulk_cancel' => 'Anuluj',
     'bulk_clear' => 'Odznacz',
+    'collapse_all' => 'Zwiń wszystko',
+    'expand' => 'Rozwiń',
+    'collapse' => 'Zwiń',
 ];

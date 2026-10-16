@@ -24,4 +24,7 @@ return [
     'bulk_apply' => 'Save',
     'bulk_cancel' => 'Cancel',
     'bulk_clear' => 'Deselect',
+    'collapse_all' => 'Collapse all',
+    'expand' => 'Expand',
+    'collapse' => 'Collapse',
 ];

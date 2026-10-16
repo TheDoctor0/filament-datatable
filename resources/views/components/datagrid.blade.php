@@ -31,29 +31,38 @@
                 <svg class="rg-filterbadge-x" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
 
-            <div class="rg-dd" @click.outside="columnMenuOpen = false">
-                <button type="button" class="rg-colsbtn" title="{{ __('filament-datatable::datagrid.choose_columns') }}" @click="columnMenuOpen = !columnMenuOpen">
+            <div class="rg-tools-end">
+                <button type="button" class="rg-colsbtn rg-collapse" x-show="hasExpanded()" x-cloak @click="collapseAll()">
                     <svg class="fi-icon fi-size-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M14 17h2.75A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3H14v14ZM12.5 3h-5v14h5V3ZM3.25 3H6v14H3.25A2.25 2.25 0 0 1 1 14.75v-9.5A2.25 2.25 0 0 1 3.25 3Z"/>
+                        <path fill-rule="evenodd" d="M14.78 14.78a.75.75 0 0 1-1.06 0L10 11.06l-3.72 3.72a.75.75 0 1 1-1.06-1.06l4.25-4.25a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06Zm0-6a.75.75 0 0 1-1.06 0L10 5.06 6.28 8.78a.75.75 0 0 1-1.06-1.06l4.25-4.25a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd"/>
                     </svg>
-                    <span>{{ __('filament-datatable::datagrid.columns') }}</span>
+                    <span>{{ __('filament-datatable::datagrid.collapse_all') }}</span>
                 </button>
-                <div class="ls-pop rg-cols" x-show="columnMenuOpen" x-cloak @click.outside="columnMenuOpen = false">
-                    <div class="rg-cols-head">
+
+                <div class="rg-dd" @click.outside="columnMenuOpen = false">
+                    <button type="button" class="rg-colsbtn" title="{{ __('filament-datatable::datagrid.choose_columns') }}" @click="columnMenuOpen = !columnMenuOpen">
+                        <svg class="fi-icon fi-size-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path d="M14 17h2.75A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3H14v14ZM12.5 3h-5v14h5V3ZM3.25 3H6v14H3.25A2.25 2.25 0 0 1 1 14.75v-9.5A2.25 2.25 0 0 1 3.25 3Z"/>
+                        </svg>
                         <span>{{ __('filament-datatable::datagrid.columns') }}</span>
-                        <button type="button" class="rg-reset" @click="resetColumns()">{{ __('filament-datatable::datagrid.reset') }}</button>
+                    </button>
+                    <div class="ls-pop rg-cols" x-show="columnMenuOpen" x-cloak @click.outside="columnMenuOpen = false">
+                        <div class="rg-cols-head">
+                            <span>{{ __('filament-datatable::datagrid.columns') }}</span>
+                            <button type="button" class="rg-reset" @click="resetColumns()">{{ __('filament-datatable::datagrid.reset') }}</button>
+                        </div>
+                        <template x-for="(column, index) in orderedColumns" :key="column.k">
+                            <label class="ls-opt rg-colrow" draggable="true"
+                                   @dragstart="draggingFrom = index" @dragover.prevent @drop.prevent="dropColumn(index)"
+                                   :class="draggingFrom === index && 'rg-dragging'">
+                                <input type="checkbox" class="fi-checkbox-input" :checked="visibleKeys.includes(column.k)" @change="toggleColumn(column.k)">
+                                <span x-text="column.t" style="flex:1"></span>
+                                <span class="rg-drag" title="{{ __('filament-datatable::datagrid.drag_to_reorder') }}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16"/></svg>
+                                </span>
+                            </label>
+                        </template>
                     </div>
-                    <template x-for="(column, index) in orderedColumns" :key="column.k">
-                        <label class="ls-opt rg-colrow" draggable="true"
-                               @dragstart="draggingFrom = index" @dragover.prevent @drop.prevent="dropColumn(index)"
-                               :class="draggingFrom === index && 'rg-dragging'">
-                            <input type="checkbox" class="fi-checkbox-input" :checked="visibleKeys.includes(column.k)" @change="toggleColumn(column.k)">
-                            <span x-text="column.t" style="flex:1"></span>
-                            <span class="rg-drag" title="{{ __('filament-datatable::datagrid.drag_to_reorder') }}">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16"/></svg>
-                            </span>
-                        </label>
-                    </template>
                 </div>
             </div>
         </div>
@@ -143,7 +152,7 @@
                     <template x-for="(row, slot) in (loading ? [] : windowRows)" :key="slot">
                         <tr class="rg-row" x-show="row" @click="openRow(row)"
                             :style="rowUrl ? 'cursor:pointer' : ''"
-                            :class="[row && isRowSelected(row.id) && 'rg-selected', rowHighlightClass(row)]">
+                            :class="[row && isRowSelected(row.id) && 'rg-selected', rowHighlightClass(row), treeRowClass(row)]">
                             <template x-if="selectable">
                                 <td class="rg-td rg-check">
                                     <input type="checkbox" class="fi-checkbox-input" :checked="row && isRowSelected(row.id)" :disabled="allFiltered" @change="row && toggleRowSelection(row.id)">
@@ -151,12 +160,14 @@
                             </template>
                             <td class="rg-td rg-spacer"></td>
                             <template x-for="column in renderedColumns" :key="column.k">
-                                <td class="rg-td" :class="cellClass(column)">
-                                    <template x-if="column.edit">
+                                <td class="rg-td" :class="cellClass(column, row)">
+                                    <template x-if="canEdit(column, row)">
                                         <div class="fi-ta-text-input">
                                             <div class="fi-input-wrp">
                                                 <div class="fi-input-wrp-content-ctn">
                                                     <input class="fi-input fi-align-start" type="text" :aria-label="column.t"
+                                                           :placeholder="column.placeholder || ''"
+                                                           :title="row ? (row[column.k] ?? '') : ''"
                                                            :value="row ? (row[column.k] ?? '') : ''"
                                                            @change="row && saveCell(row, column.k, $event.target.value)"
                                                            @keydown.enter="$event.target.blur()">
@@ -164,7 +175,23 @@
                                             </div>
                                         </div>
                                     </template>
-                                    <template x-if="!column.edit">
+                                    <template x-if="!canEdit(column, row) && isTreeColumn(column)">
+                                        <div class="rg-tree" :style="`padding-left:${treeIndent(row)}px`">
+                                            <button type="button" class="rg-chev" x-show="row && row._hasChildren"
+                                                    :class="isExpanded(row) && 'open'"
+                                                    :aria-expanded="isExpanded(row) ? 'true' : 'false'"
+                                                    :aria-label="isExpanded(row) ? '{{ __('filament-datatable::datagrid.collapse') }}' : '{{ __('filament-datatable::datagrid.expand') }}'"
+                                                    @click.stop="toggleRow(row)">
+                                                <span class="rg-spin" x-show="isTreeLoading(row)"></span>
+                                                <svg x-show="!isTreeLoading(row)" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd"/></svg>
+                                            </button>
+                                            <span class="rg-chev-gap" x-show="!(row && row._hasChildren)"></span>
+                                            <span class="rg-tree-txt" :class="row ? cellView(row, column).cls : ''"
+                                                  :title="row ? (cellView(row, column).title || cellView(row, column).text) : ''"
+                                                  x-text="row ? cellView(row, column).text : ''"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!canEdit(column, row) && !isTreeColumn(column)">
                                         <span :class="row ? cellView(row, column).cls : ''"
                                               :title="row ? cellView(row, column).title : ''"
                                               x-text="row ? cellView(row, column).text : ''"></span>
