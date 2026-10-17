@@ -77,14 +77,26 @@ function numberFormat(locale) {
     return format;
 }
 
-/** Locale number formatting, trimmed to 2 decimals. */
+// Whether a locale writes plain ASCII digits (not e.g. Arabic-Indic) — then a small integer needs
+// no formatter at all: no grouping separator, no decimals.
+const ASCII_DIGITS = new Map();
+function writesAsciiDigits(locale) {
+    let ascii = ASCII_DIGITS.get(locale);
+    if (ascii === undefined) ASCII_DIGITS.set(locale, (ascii = numberFormat(locale).format(123) === '123'));
+    return ascii;
+}
+
+/** Locale number formatting, trimmed to 2 decimals. Integers below 1000 skip the formatter. */
 export function formatNumber(value, locale = DEFAULT_LOCALE) {
     const rounded = Math.round((Number(value) || 0) * 100) / 100;
+    if (Number.isInteger(rounded) && rounded > -1000 && rounded < 1000 && writesAsciiDigits(locale)) {
+        return String(rounded); // also turns -0 into "0"
+    }
     return numberFormat(locale).format(rounded);
 }
 
 export function formatInteger(value, locale = DEFAULT_LOCALE) {
-    return numberFormat(locale).format(Math.round(Number(value) || 0));
+    return formatNumber(Math.round(Number(value) || 0), locale);
 }
 
 /**
