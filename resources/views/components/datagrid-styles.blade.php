@@ -161,13 +161,17 @@
     .ls-actions .ls-apply{background:var(--rg-primary);color:#fff;border-color:var(--rg-primary);}
     .ls-pop input[type=text]:focus,.ls-pop input[type=number]:focus{outline:2px solid color-mix(in srgb,var(--rg-primary) 40%,transparent);outline-offset:0;}
 
-    /* Thicker, easier-to-grab scrollbars on the grid viewport. */
-    .rg-wrap{scrollbar-width:auto;scrollbar-color:color-mix(in srgb,var(--rg-fg) 28%,transparent) transparent;}
+    /* Thicker, easier-to-grab scrollbars on the grid viewport: a visible track and a solid thumb.
+       Chrome / Edge / Safari use the ::-webkit-scrollbar rules — they are ignored as soon as the
+       standard scrollbar-width / scrollbar-color are set, so those go to Firefox only. */
     .rg-wrap::-webkit-scrollbar{width:14px;height:14px;}
-    .rg-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--rg-fg) 24%,transparent);border-radius:8px;border:3px solid var(--rg-bg);}
-    .rg-wrap::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--rg-fg) 40%,transparent);}
-    .rg-wrap::-webkit-scrollbar-track{background:transparent;}
-    .rg-wrap::-webkit-scrollbar-corner{background:var(--rg-bg);}
+    .rg-wrap::-webkit-scrollbar-track{background:color-mix(in srgb,var(--rg-fg) 7%,var(--rg-bg));}
+    .rg-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--rg-fg) 40%,var(--rg-bg));border-radius:8px;border:3px solid transparent;background-clip:padding-box;min-height:48px;min-width:48px;}
+    .rg-wrap::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--rg-fg) 58%,var(--rg-bg));}
+    .rg-wrap::-webkit-scrollbar-corner{background:color-mix(in srgb,var(--rg-fg) 7%,var(--rg-bg));}
+    @supports not selector(::-webkit-scrollbar){
+        .rg-wrap{scrollbar-width:auto;scrollbar-color:color-mix(in srgb,var(--rg-fg) 45%,var(--rg-bg)) color-mix(in srgb,var(--rg-fg) 7%,var(--rg-bg));}
+    }
 
     /* Pinned columns (sticky left) and the sticky actions column (right). Only while .rg-pin is set
        (wide enough viewport). Backgrounds are opaque so the cells scrolling underneath never show through. */
