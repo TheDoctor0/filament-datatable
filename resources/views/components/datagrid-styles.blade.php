@@ -190,6 +190,8 @@
     .rg-th:hover .rg-resizer::after{opacity:1;}
     .rg-resizer:hover::after{background:var(--rg-primary);opacity:1;}
     body.rg-resizing{cursor:col-resize!important;user-select:none;}
+    .rg-link{color:var(--rg-primary);text-decoration:none;}
+    .rg-link:hover{text-decoration:underline;}
     body.rg-resizing *{cursor:col-resize!important;}
 
     /* Column picker: search + pin toggle per row. */

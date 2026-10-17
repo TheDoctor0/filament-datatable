@@ -275,6 +275,7 @@ export class ClientRowSource {
     rowAt(index) { return this.viewRows[index]; }
     total() { return this.viewRows.length; }
     loadedRows() { return this.allRows; }              // for distinct filter options / summary
+    sampleRows() { return this.allRows; }              // rows available for width measuring
     viewIds() { return this.viewRows.map((row) => row.id); } // for export / select-all
 }
 
@@ -363,6 +364,7 @@ export class ServerRowSource {
 
     total() { return this.filteredTotal; }
     loadedRows() { return null; }   // server mode: distinct options / summary come from the backend
+    sampleRows() { return [...this.blocks.values()].flat(); }
     viewIds() { return null; }      // server mode: export re-runs the query server-side
 }
 
@@ -513,6 +515,11 @@ export class TreeRowSource {
     }
 
     loadedRows() { return this.inner.loadedRows(); }
+    sampleRows() {
+        const rows = [...this.inner.sampleRows()];
+        for (const segment of this.segments) rows.push(...segment.flat);
+        return rows;
+    }
     viewIds() { return this.inner.viewIds(); }
 }
 
@@ -705,6 +712,7 @@ export default function datagrid(config) {
         _columnWidths: null,
         _contentWidths: null,   // measured auto-fit widths per column key
         _measureCtx: null,
+        _lastResizeDown: null,  // {key, at} of the previous pointerdown on a resize handle
         _lastScrollLeft: -1,
         _windowSignature: '',
 
@@ -918,6 +926,8 @@ export default function datagrid(config) {
 
         /* ------------------------- tree ------------------------- */
 
+        /** URL for a linked cell: `column.link` names the row field that holds it. */
+        cellLink(column, row) { return (column.link && row && row[column.link]) || null; },
         isTreeColumn(column) { return !!this.tree && column.k === this.tree.column; },
         treeIndent(row) { return row ? (row._level || 0) * (this.tree.indent || 18) : 0; },
         isExpanded(row) { this.treeRevision; return this.source.isOpen(row); },
@@ -1053,6 +1063,20 @@ export default function datagrid(config) {
         computeContentWidths() {
             const rows = this.source.loadedRows();
             if (!rows || rows.length === 0) return;
+            const widths = {};
+            for (const column of this.config.columns) {
+                if (column.width) continue;
+                widths[column.k] = this.measureColumn(column, rows, false);
+            }
+            this._contentWidths = widths;
+            this.invalidateLayout(); // the cached width array + pinned offsets must pick up the fit
+        },
+
+        /**
+         * Width that fits the widest rendered value (and the header) of a column. `exact` skips the
+         * min/max clamps — used by the double-click fit, which should match the content like Excel.
+         */
+        measureColumn(column, rows, exact) {
             const table = this.$refs.scroller && this.$refs.scroller.querySelector('.rg-table');
             const baseFont = table
                 ? `${getComputedStyle(table).fontSize} ${getComputedStyle(table).fontFamily}`
@@ -1071,29 +1095,34 @@ export default function datagrid(config) {
             const FUNNEL_ICON = 22;         // filter funnel (only on filterable columns)
             const HEADER_GAPS = 6;          // flex gaps between label, sort chevron and funnel
             const COMPACT_LABEL = 56;       // compactHeaders: minimum visible label width
+            const TREE_TOGGLE = 26;         // chevron + gap in front of a tree cell
             const step = Math.max(1, Math.floor(rows.length / 2000)); // sample big datasets
-            const widths = {};
-            for (const column of this.config.columns) {
-                if (column.width) continue;
-                let longest = '';
-                for (let i = 0; i < rows.length; i += step) {
-                    const text = this.computeCell(rows[i], column).text;
-                    if (text.length > longest.length) longest = text;
-                }
-                ctx.font = column.mono ? monoFont : baseFont;
-                const cellWidth = ctx.measureText(longest).width + CELL_PADDING + (column.badge ? 20 : 0);
-                ctx.font = headerFont;
-                // compactHeaders: the column is sized by its content, not by a long header — the
-                // one-line label is truncated with an ellipsis, keeping at least COMPACT_LABEL px of it.
-                const labelWidth = ctx.measureText(column.t).width;
-                const headerWidth = (this.config.compactHeaders ? Math.min(labelWidth, COMPACT_LABEL) : labelWidth) + HEADER_PADDING + SORT_ICON + HEADER_GAPS
-                    + (column.filter ? FUNNEL_ICON : 0);
-                const min = column.minWidth || (column.edit ? 180 : 72);
-                const max = column.maxWidth || 460;
-                widths[column.k] = Math.round(Math.min(max, Math.max(min, Math.ceil(Math.max(cellWidth, headerWidth)))));
+            const tree = this.isTreeColumn(column);
+
+            ctx.font = column.mono ? monoFont : baseFont;
+            let cellWidth = 0;
+            for (let i = 0; i < rows.length; i += step) {
+                const row = rows[i];
+                if (!row) continue;
+                const text = column.edit && this.canEdit(column, row)
+                    ? String(row[column.k] ?? column.placeholder ?? '')
+                    : this.computeCell(row, column).text;
+                const width = ctx.measureText(text).width + (tree ? this.treeIndent(row) + TREE_TOGGLE : 0);
+                if (width > cellWidth) cellWidth = width;
             }
-            this._contentWidths = widths;
-            this.invalidateLayout(); // the cached width array + pinned offsets must pick up the fit
+            cellWidth += CELL_PADDING + (column.badge ? 20 : 0);
+
+            ctx.font = headerFont;
+            // compactHeaders: the column is sized by its content, not by a long header — the
+            // one-line label is truncated with an ellipsis, keeping at least COMPACT_LABEL px of it.
+            const labelWidth = ctx.measureText(column.t).width;
+            const headerWidth = (this.config.compactHeaders ? Math.min(labelWidth, COMPACT_LABEL) : labelWidth) + HEADER_PADDING + SORT_ICON + HEADER_GAPS
+                + (column.filter ? FUNNEL_ICON : 0);
+            const fit = Math.ceil(Math.max(cellWidth, headerWidth));
+            if (exact) return clampColumnWidth(fit);
+            const min = column.minWidth || (column.edit ? 180 : 72);
+            const max = column.maxWidth || 460;
+            return Math.round(Math.min(max, Math.max(min, fit)));
         },
 
         /** Drop cached widths/window so the next recomputeColumnWindow rebuilds everything. */
@@ -1153,9 +1182,18 @@ export default function datagrid(config) {
         /**
          * Pointer-drag on a header's right edge sets a user width for that column (persisted with
          * the layout). Pointer capture keeps the drag alive outside the handle; updates are batched
-         * per animation frame. Double-click the edge to go back to the auto-fit width.
+         * per animation frame. Double-click the edge to fit the column to its loaded content.
          */
         startResize(column, event) {
+            // Detect the double-click here: the drag's pointer capture can swallow a native dblclick.
+            const now = Date.now();
+            const last = this._lastResizeDown;
+            this._lastResizeDown = { key: column.k, at: now };
+            if (last && last.key === column.k && now - last.at < 400) {
+                this._lastResizeDown = null;
+                this.fitColumn(column);
+                return;
+            }
             const handle = event.currentTarget;
             const startX = event.clientX;
             const startWidth = this.columnWidth(column);
@@ -1188,6 +1226,12 @@ export default function datagrid(config) {
             handle.addEventListener('pointermove', move);
             handle.addEventListener('pointerup', end);
             handle.addEventListener('pointercancel', end);
+        },
+        fitColumn(column) {
+            const rows = this.source.sampleRows();
+            if (!rows || rows.length === 0) return;
+            this.userWidths = { ...this.userWidths, [column.k]: this.measureColumn(column, rows, true) };
+            this.onColumnsChanged();
         },
         resetWidth(key) {
             if (!(key in this.userWidths)) return;

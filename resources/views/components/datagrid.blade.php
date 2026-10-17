@@ -197,7 +197,7 @@
                                         <button type="button" class="rg-funnel" :class="filterIsActive(column) && 'on'"
                                                 x-show="column.filter" @click.stop="openFilter(column, $event)" title="{{ __('filament-datatable::datagrid.filter') }}" x-html="icons.funnel"></button>
                                         <span class="rg-resizer" x-show="resizable" title="{{ __('filament-datatable::datagrid.resize') }}"
-                                              @pointerdown.stop.prevent="startResize(column, $event)" @dblclick.stop="resetWidth(column.k)" @click.stop></span>
+                                              @pointerdown.stop.prevent="startResize(column, $event)" @click.stop></span>
                                     </span>
                                 </template>
                             </th>
@@ -258,12 +258,25 @@
                                                 <svg x-show="!isTreeLoading(row)" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd"/></svg>
                                             </button>
                                             <span class="rg-chev-gap" x-show="!(row && row._hasChildren)"></span>
-                                            <span class="rg-tree-txt" :class="row ? cellView(row, column).cls : ''"
-                                                  :title="row ? (cellView(row, column).title || cellView(row, column).text) : ''"
-                                                  x-text="row ? cellView(row, column).text : ''"></span>
+                                            <template x-if="cellLink(column, row)">
+                                                <a class="rg-tree-txt rg-link" :href="cellLink(column, row)" :target="column.newTab ? '_blank' : '_self'" @click.stop
+                                                   :title="row ? (cellView(row, column).title || cellView(row, column).text) : ''"
+                                                   x-text="row ? cellView(row, column).text : ''"></a>
+                                            </template>
+                                            <template x-if="!cellLink(column, row)">
+                                                <span class="rg-tree-txt" :class="row ? cellView(row, column).cls : ''"
+                                                      :title="row ? (cellView(row, column).title || cellView(row, column).text) : ''"
+                                                      x-text="row ? cellView(row, column).text : ''"></span>
+                                            </template>
                                         </div>
                                     </template>
-                                    <template x-if="!column._spacer && !canEdit(column, row) && !isTreeColumn(column)">
+                                    <template x-if="!column._spacer && !canEdit(column, row) && !isTreeColumn(column) && cellLink(column, row)">
+                                        <a class="rg-link" :class="row ? cellView(row, column).cls : ''" :href="cellLink(column, row)"
+                                           :target="column.newTab ? '_blank' : '_self'" @click.stop
+                                           :title="row ? cellView(row, column).title : ''"
+                                           x-text="row ? cellView(row, column).text : ''"></a>
+                                    </template>
+                                    <template x-if="!column._spacer && !canEdit(column, row) && !isTreeColumn(column) && !cellLink(column, row)">
                                         <span :class="row ? cellView(row, column).cls : ''"
                                               :title="row ? cellView(row, column).title : ''"
                                               x-text="row ? cellView(row, column).text : ''"></span>
