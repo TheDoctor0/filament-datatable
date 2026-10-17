@@ -87,7 +87,7 @@
                                    @dragstart="draggingFrom = index" @dragover.prevent @drop.prevent="dropColumn(index)"
                                    :class="draggingFrom === index && 'rg-dragging'">
                                 <input type="checkbox" class="fi-checkbox-input" :checked="visibleKeys.includes(column.k)"
-                                       :disabled="isPinned(column.k)" @change="toggleColumn(column.k)">
+                                       @change="toggleColumn(column.k)">
                                 <span x-text="column.t" class="rg-colrow-label"></span>
                                 <button type="button" class="rg-pinbtn" :class="isPinned(column.k) && 'on'" x-html="icons.pin"
                                         :title="isPinned(column.k) ? @js(__('filament-datatable::datagrid.unpin_column')) : @js(__('filament-datatable::datagrid.pin_column'))"

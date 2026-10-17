@@ -1221,7 +1221,7 @@ export default function datagrid(config) {
             this.stickyActions = !!this.config.stickyActions;
             this.onColumnsChanged();
         },
-        /** Pin / unpin a column; a pinned column is always shown. */
+        /** Pin / unpin a column; pinning a hidden column shows it. A pinned column can still be hidden — it keeps its pin for when it is shown again. */
         togglePin(key) {
             if (this.frozenKeys.includes(key)) {
                 this.frozenKeys = this.frozenKeys.filter((frozen) => frozen !== key);
