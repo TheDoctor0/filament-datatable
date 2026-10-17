@@ -192,6 +192,7 @@ export function layoutDefaults(config) {
         v: config.columns.filter((column) => !column.off).map((column) => column.k),
         f: [...(config.frozen || [])],
         a: !!config.stickyActions,
+        q: [...(config.quickFilters || [])],
     };
 }
 
@@ -214,6 +215,7 @@ export function mergeColumnLayout(saved, config) {
         v: keep('v') ? saved.v.filter((key) => known.includes(key)) : defaults.v,
         f: keep('f') ? saved.f.filter((key) => known.includes(key)) : defaults.f,
         a: keepActions ? saved.a : defaults.a,
+        q: keep('q') ? saved.q.filter((key) => known.includes(key)) : defaults.q,
     };
 }
 
@@ -1343,8 +1345,8 @@ export default function datagrid(config) {
                     for (const key in saved.w) if (known.includes(key) || key === ACTIONS_KEY) widths[key] = clampColumnWidth(saved.w[key]);
                     this.userWidths = widths;
                 }
-                if (this.quickFiltersEnabled && Array.isArray(saved.q)) {
-                    this.quickKeys = saved.q.filter((key) => this.columnsByKey[key] && this.columnsByKey[key].filter);
+                if (this.quickFiltersEnabled) {
+                    this.quickKeys = layout.q.filter((key) => this.columnsByKey[key] && this.columnsByKey[key].filter);
                 }
             } catch (error) { /* */ }
         },
