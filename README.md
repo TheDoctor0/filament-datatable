@@ -190,6 +190,8 @@ notification instead of downloading the error page.
 | `off`         | bool              | Hidden by default in the column picker (can be enabled by the user). |
 | `link`        | string            | Row field holding a URL; when set on a row the cell renders as a link to it. |
 | `newTab`      | bool              | Open the `link` URL in a new tab. |
+| `tag`         | string            | Row field shown as a small badge after the cell text (e.g. a document type). |
+| `tagColors`   | `{value: color}`  | Badge colour per `tag` value (`info` by default, like `badge`). |
 | `width`       | number            | Explicit column width (px); disables auto-fit for this column. |
 | `minWidth`    | number            | Lower clamp for the auto-fit width. Defaults to `72` (`180` for editable columns). |
 | `maxWidth`    | number            | Upper clamp for the auto-fit width. Defaults to `460`. |

@@ -268,6 +268,9 @@
                                                       :title="row ? (cellView(row, column).title || cellView(row, column).text) : ''"
                                                       x-text="row ? cellView(row, column).text : ''"></span>
                                             </template>
+                                            <template x-if="cellTag(column, row)">
+                                                <span class="rg-badge rg-tag" :class="cellTag(column, row).cls" x-text="cellTag(column, row).text"></span>
+                                            </template>
                                         </div>
                                     </template>
                                     <template x-if="!column._spacer && !canEdit(column, row) && !isTreeColumn(column) && cellLink(column, row)">
@@ -280,6 +283,9 @@
                                         <span :class="row ? cellView(row, column).cls : ''"
                                               :title="row ? cellView(row, column).title : ''"
                                               x-text="row ? cellView(row, column).text : ''"></span>
+                                    </template>
+                                    <template x-if="!column._spacer && !isTreeColumn(column) && cellTag(column, row)">
+                                        <span class="rg-badge rg-tag" :class="cellTag(column, row).cls" x-text="cellTag(column, row).text"></span>
                                     </template>
                                 </td>
                             </template>

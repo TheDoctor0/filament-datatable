@@ -69,6 +69,7 @@
     .rg-edit{overflow:visible;padding:0 6px;}
     .rg-tree{display:flex;align-items:center;gap:4px;min-width:0;}
     .rg-tree-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rg-tag{margin-left:6px;flex:none;font-weight:600;}
     .rg-chev{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;
         color:var(--rg-muted);cursor:pointer;background:transparent;border:0;padding:0;}
     .rg-chev:hover{background:var(--rg-hover);color:var(--rg-primary);}

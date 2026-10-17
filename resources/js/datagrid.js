@@ -929,6 +929,13 @@ export default function datagrid(config) {
 
         /** URL for a linked cell: `column.link` names the row field that holds it. */
         cellLink(column, row) { return (column.link && row && row[column.link]) || null; },
+        /** Badge after the cell text: `column.tag` names the row field, `tagColors` maps value → colour. */
+        cellTag(column, row) {
+            const raw = column.tag && row ? row[column.tag] : null;
+            if (raw == null || raw === '') return null;
+            const color = (column.tagColors && column.tagColors[raw]) || 'info';
+            return { text: String(raw), cls: `rg-c-${color}` };
+        },
         isTreeColumn(column) { return !!this.tree && column.k === this.tree.column; },
         treeIndent(row) { return row ? (row._level || 0) * (this.tree.indent || 18) : 0; },
         isExpanded(row) { this.treeRevision; return this.source.isOpen(row); },
@@ -1098,6 +1105,7 @@ export default function datagrid(config) {
             const HEADER_GAPS = 6;          // flex gaps between label, sort chevron and funnel
             const COMPACT_LABEL = 56;       // compactHeaders: minimum visible label width
             const TREE_TOGGLE = 26;         // chevron + gap in front of a tree cell
+            const TAG_PADDING = 28;         // badge padding + border + gap after the text
             const step = Math.max(1, Math.floor(rows.length / 2000)); // sample big datasets
             const tree = this.isTreeColumn(column);
 
@@ -1109,7 +1117,9 @@ export default function datagrid(config) {
                 const text = column.edit && this.canEdit(column, row)
                     ? String(row[column.k] ?? column.placeholder ?? '')
                     : this.computeCell(row, column).text;
-                const width = ctx.measureText(text).width + (tree ? this.treeIndent(row) + TREE_TOGGLE : 0);
+                const tag = this.cellTag(column, row);
+                const width = ctx.measureText(text).width + (tree ? this.treeIndent(row) + TREE_TOGGLE : 0)
+                    + (tag ? ctx.measureText(tag.text).width + TAG_PADDING : 0);
                 if (width > cellWidth) cellWidth = width;
             }
             cellWidth += CELL_PADDING + (column.badge ? 20 : 0);
