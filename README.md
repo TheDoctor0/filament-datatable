@@ -154,7 +154,7 @@ notification instead of downloading the error page.
 | `rowUrl`             | string            | `:id` template; clicking a row navigates here. |
 | `rowHighlight`       | `{field, class?}` | When `row[field]` is truthy the row gets `class` (defaults to `rg-alert`, a red tint). |
 | `summary`            | array             | Summary bar items (see below). Omit or leave empty to hide the bar. |
-| `actionsColumnWidth` | number            | Width (px) of the actions column. Defaults to `370`. |
+| `actionsColumnWidth` | number            | Width (px) of the actions column. Defaults to the widest set of buttons on the loaded rows. |
 | `storageKey`         | string            | `localStorage` key for the persisted column layout. Defaults to `rg-cols`. |
 | `tree`               | `{column, childrenUrl, indent?}` | Tree mode (see below). `column` is the key of the column that gets the expand chevron and indent; `indent` is px per level (default `18`). Disables selection. |
 | `urlState`           | `true` \| `{prefix}` | Mirror search (`q`), sort (`sort=key:dir`) and column filters (`f`, JSON) in the query string. `prefix` namespaces the params when a page has several grids. |

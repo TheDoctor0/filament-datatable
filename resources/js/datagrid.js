@@ -1107,6 +1107,7 @@ export default function datagrid(config) {
                 widths[column.k] = this.measureColumn(column, rows, false);
             }
             this._contentWidths = widths;
+            if (!this.config.actionsColumnWidth && this.rowActions) this.actionsColumnWidth = this.measureActions(rows);
             this.invalidateLayout(); // the cached width array + pinned offsets must pick up the fit
         },
 
@@ -1164,6 +1165,26 @@ export default function datagrid(config) {
             const min = column.minWidth || (column.edit ? 180 : 72);
             const max = column.maxWidth || 460;
             return Math.round(Math.min(max, Math.max(min, fit)));
+        },
+
+        /** Actions column width: the widest set of buttons any measured row shows (all actions without rows). */
+        measureActions(rows) {
+            const table = this.$refs.scroller && this.$refs.scroller.querySelector('.rg-table');
+            const family = table ? getComputedStyle(table).fontFamily : 'sans-serif';
+            const ctx = this._measureCtx || (this._measureCtx = document.createElement('canvas').getContext('2d'));
+            ctx.font = `500 12.5px ${family}`;
+            const BUTTON = 6 + 14 + 5 + 6;  // padding + icon + gap + padding
+            const GAP = 6;                  // .rg-acts-in gap
+            const CELL_PADDING = 24;
+            const setWidth = (actions) => actions.reduce((sum, action) => sum + ctx.measureText(action.label).width + BUTTON, 0)
+                + Math.max(0, actions.length - 1) * GAP;
+            let widest = 0;
+            const step = Math.max(1, Math.floor(rows.length / 2000));
+            for (let i = 0; i < rows.length; i += step) {
+                if (rows[i]) widest = Math.max(widest, setWidth(this.actionsFor(rows[i])));
+            }
+            if (widest === 0) widest = setWidth(this.rowActions);
+            return Math.ceil(widest + CELL_PADDING + 4);
         },
 
         /** Drop cached widths/window so the next recomputeColumnWindow rebuilds everything. */
