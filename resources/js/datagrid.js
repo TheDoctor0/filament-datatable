@@ -839,6 +839,7 @@ export default function datagrid(config) {
         _serverOptions: {},       // field → distinct values (tryb serwerowy)
         tree: config.tree || null,   // {column, childrenUrl, indent?}
         treeRevision: 0,          // bumped on expand/collapse so tree-dependent bindings re-evaluate
+        rowsRevision: 0,          // bumped when the (non-reactive) source's rows change: new view, block arrived
         urlPrefix: config.urlState ? ((config.urlState && config.urlState.prefix) || '') : null,
 
         openRow(row) {
@@ -942,6 +943,7 @@ export default function datagrid(config) {
         /** The fixed-length array the template iterates; slot i shows row (firstIndex + i). */
         get windowRows() {
             this.treeRevision;
+            this.rowsRevision;
             const rows = [];
             for (let slot = 0; slot < this.poolSize; slot++) {
                 rows.push(this.source.rowAt(this.firstIndex + slot) ?? null);
@@ -950,7 +952,7 @@ export default function datagrid(config) {
         },
 
         refreshWindowRows() {
-            this.firstIndex = this.firstIndex; // touch to re-run the getter (server block arrived)
+            this.rowsRevision++; // the source is not reactive — re-run windowRows / summary explicitly
             this.recomputePadding();
         },
 
@@ -1672,6 +1674,7 @@ export default function datagrid(config) {
         /* ------------------------- selection ------------------------- */
 
         allSelected() {
+            this.rowsRevision;
             const total = this.source.total();
             if (this.allFiltered) return total > 0;
             return total > 0 && this.selectedIds.length >= total;
@@ -1698,6 +1701,7 @@ export default function datagrid(config) {
         /* ------------------------- akcja masowa ------------------------- */
 
         selectionCount() {
+            this.rowsRevision;
             return this.allFiltered ? this.source.total() : this.selectedIds.length;
         },
         hasSelection() { return this.selectionCount() > 0; },
@@ -1801,6 +1805,7 @@ export default function datagrid(config) {
 
         /** `config.summary`: `[{key, label, agg: 'count'|'sum', format: 'number'|'int'}]`. */
         summaryHtml() {
+            this.rowsRevision;
             const items = this.config.summary || [];
             const sums = {};
             // Client mode sums the in-memory rows; server mode gets aggregates from the backend.
