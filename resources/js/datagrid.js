@@ -184,6 +184,35 @@ export function distinctValues(rows, field, numeric = false) {
 }
 
 /** Clamp a user-dragged column width. */
+/** The config's default column order, visibility and pins — saved with a layout to detect config changes. */
+export function layoutDefaults(config) {
+    return {
+        o: config.columns.map((column) => column.k),
+        v: config.columns.filter((column) => !column.off).map((column) => column.k),
+        f: [...(config.frozen || [])],
+    };
+}
+
+/**
+ * Saved column layout merged with the current config. Each part (order, visibility, pins) keeps the
+ * user's choice only while the config default it was saved against is unchanged — so a new default
+ * order or pin set in the code reaches users who already saved a layout. Unknown keys are dropped,
+ * new columns are appended.
+ */
+export function mergeColumnLayout(saved, config) {
+    const defaults = layoutDefaults(config);
+    const known = defaults.o;
+    // Visibility and pins are sets — only the order part compares in sequence.
+    const sig = (part, keys) => JSON.stringify(part === 'o' ? keys : [...(keys || [])].sort());
+    const keep = (part) => Array.isArray(saved[part]) && saved.d && sig(part, saved.d[part]) === sig(part, defaults[part]);
+    const order = keep('o') ? saved.o.filter((key) => known.includes(key)) : [...known];
+    return {
+        o: order.concat(known.filter((key) => !order.includes(key))),
+        v: keep('v') ? saved.v.filter((key) => known.includes(key)) : defaults.v,
+        f: keep('f') ? saved.f.filter((key) => known.includes(key)) : defaults.f,
+    };
+}
+
 export function clampColumnWidth(width) {
     return Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, Number(width) || 0)));
 }
@@ -1258,6 +1287,7 @@ export default function datagrid(config) {
             try {
                 localStorage.setItem(key, JSON.stringify({
                     v: this.visibleKeys, o: this.columnOrder, f: this.frozenKeys, w: this.userWidths, q: this.quickKeys,
+                    d: layoutDefaults(this.config),
                 }));
             } catch (error) { /* */ }
         },
@@ -1266,11 +1296,10 @@ export default function datagrid(config) {
                 const saved = JSON.parse(localStorage.getItem(this.config.storageKey || 'rg-cols') || 'null');
                 if (!saved || !Array.isArray(saved.v) || !Array.isArray(saved.o)) return;
                 const known = this.config.columns.map((column) => column.k);
-                this.columnOrder = saved.o.filter((key) => known.includes(key))
-                    .concat(known.filter((key) => !saved.o.includes(key)));
-                this.visibleKeys = saved.v.filter((key) => known.includes(key));
-                // Layouts saved before pinning/resizing/quick filters existed keep the config defaults.
-                if (Array.isArray(saved.f)) this.frozenKeys = saved.f.filter((key) => known.includes(key));
+                const layout = mergeColumnLayout(saved, this.config);
+                this.columnOrder = layout.o;
+                this.visibleKeys = layout.v;
+                this.frozenKeys = layout.f;
                 if (saved.w && typeof saved.w === 'object') {
                     const widths = {};
                     for (const key in saved.w) if (known.includes(key)) widths[key] = clampColumnWidth(saved.w[key]);

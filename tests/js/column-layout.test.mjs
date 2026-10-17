@@ -1,0 +1,30 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { layoutDefaults, mergeColumnLayout } from '../../resources/js/datagrid.js';
+
+const config = (keys, frozen = [], off = []) => ({
+    columns: keys.map((k) => ({ k, off: off.includes(k) })),
+    frozen,
+});
+
+test('keeps the user layout while the config defaults are unchanged', () => {
+    const cfg = config(['a', 'b', 'c'], ['a']);
+    const saved = { o: ['c', 'a', 'b'], v: ['a', 'c'], f: [], d: layoutDefaults(cfg) };
+    assert.deepEqual(mergeColumnLayout(saved, cfg), { o: ['c', 'a', 'b'], v: ['a', 'c'], f: [] });
+});
+
+test('a new default order replaces the saved order but keeps visibility and pins', () => {
+    const old = config(['a', 'b', 'c']);
+    const saved = { o: ['a', 'b', 'c'], v: ['a', 'b'], f: ['b'], d: layoutDefaults(old) };
+    assert.deepEqual(mergeColumnLayout(saved, config(['a', 'c', 'b'])), { o: ['a', 'c', 'b'], v: ['a', 'b'], f: ['b'] });
+});
+
+test('new default pins reach saved layouts', () => {
+    const saved = { o: ['a', 'b'], v: ['a', 'b'], f: [], d: layoutDefaults(config(['a', 'b'])) };
+    assert.deepEqual(mergeColumnLayout(saved, config(['a', 'b'], ['a'])).f, ['a']);
+});
+
+test('layouts saved without defaults fall back to the config', () => {
+    const saved = { o: ['b', 'a'], v: ['b'], f: ['b'] };
+    assert.deepEqual(mergeColumnLayout(saved, config(['a', 'b'], ['a'], ['b'])), { o: ['a', 'b'], v: ['a'], f: ['a'] });
+});
