@@ -39,7 +39,8 @@ the grid as plain row fields — see [Derived row fields](#derived-row-fields).
 - **Value labels** — map raw cell values (enum codes, ids) to display labels per column; used in cells,
   filter options and badges.
 - **Auto-fit column widths** — the widest rendered value per column is measured against the real cell
-  font (canvas, off-DOM) for a stable width that never jumps on scroll; overridable per column.
+  font (canvas, off-DOM) for a stable width that never jumps on scroll — the whole dataset in client mode,
+  the first loaded block in server mode; overridable per column.
 - **Inline-edit cells** — editable text inputs that save through a Livewire method on the host page.
 - **Row actions** — per-row links (with an optional `:id` template and new-tab) or buttons that mount a
   Filament action, each optionally gated by a boolean row field.

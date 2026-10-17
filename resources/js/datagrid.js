@@ -818,6 +818,7 @@ export default function datagrid(config) {
                 this.filteredCount = count;
                 this.firstIndex = 0;
                 if (this.$refs.scroller) this.$refs.scroller.scrollTop = 0;
+                if (!this._contentWidths) this.computeContentWidths(); // first non-empty server view
                 this.recomputePoolSize();
                 this.recomputeColumnWindow();
                 this.recomputePadding();
@@ -1057,11 +1058,12 @@ export default function datagrid(config) {
         /**
          * Auto-width: measure the widest rendered value per column against the actual cell font
          * (canvas — no DOM), like Handsontable. Client mode measures the whole dataset (sampled
-         * above 2000 rows); result is a stable fixed width that never jumps on scroll. Columns
-         * with an explicit config `width` are skipped. Runs once per data load.
+         * above 2000 rows) once per data load; server mode measures the first loaded block once.
+         * The result is a stable fixed width that never jumps on scroll. Columns with an explicit
+         * config `width` are skipped.
          */
         computeContentWidths() {
-            const rows = this.source.loadedRows();
+            const rows = this.source.loadedRows() ?? (this._contentWidths ? null : this.source.sampleRows());
             if (!rows || rows.length === 0) return;
             const widths = {};
             for (const column of this.config.columns) {
