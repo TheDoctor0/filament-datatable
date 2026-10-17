@@ -159,6 +159,7 @@ notification instead of downloading the error page.
 | `tree`               | `{column, childrenUrl, indent?}` | Tree mode (see below). `column` is the key of the column that gets the expand chevron and indent; `indent` is px per level (default `18`). Disables selection. |
 | `urlState`           | `true` \| `{prefix}` | Mirror search (`q`), sort (`sort=key:dir`) and column filters (`f`, JSON) in the query string. `prefix` namespaces the params when a page has several grids. |
 | `frozen`             | `string[]`        | Column keys pinned to the left by default. Pinned columns stay visible (sticky) while scrolling sideways; users pin/unpin any column in the column picker. Persisted with the layout. |
+| `height`             | number            | Fixed scroller height (px). By default the grid fills the viewport: the scroller is sized so the toolbar, quick-filter / bulk bars and footer end at the bottom of the page, and it re-fits when a bar appears or the window resizes (never below 280 px). |
 | `stickyActions`      | bool              | Keep the row-actions column stuck to the right edge by default. Users can pin / unpin it in the column picker (it cannot be hidden or moved). Defaults to `false`. |
 | `pinMinViewport`     | number            | Below this viewport width (px) pinned columns and sticky actions scroll normally. Defaults to `640`. |
 | `resizable`          | bool              | Users can drag a header's right edge to resize a column (double-click = back to auto-fit). Widths are persisted with the layout. Defaults to `true`. |

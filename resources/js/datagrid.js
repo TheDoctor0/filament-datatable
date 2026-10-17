@@ -18,6 +18,7 @@ export const OVERSCAN_ROWS = 4; // rows rendered above/below the viewport as a b
 export const OVERSCAN_COLUMNS = 2; // columns rendered left/right of the viewport as a buffer
 export const CHECKBOX_COLUMN_WIDTH = 44;
 export const ACTIONS_KEY = '_actions'; // userWidths key of the actions column
+export const MIN_GRID_HEIGHT = 280;  // scroller never shrinks below this; the page scrolls instead
 export const MIN_COLUMN_WIDTH = 56; // user drag-resize clamp
 export const MAX_COLUMN_WIDTH = 900;
 export const PIN_MIN_VIEWPORT = 640; // below this pinned columns/actions scroll normally (phones)
@@ -217,6 +218,30 @@ export function mergeColumnLayout(saved, config) {
         a: keepActions ? saved.a : defaults.a,
         q: keep('q') ? saved.q.filter((key) => known.includes(key)) : defaults.q,
     };
+}
+
+/**
+ * Vertical space the page keeps below an element: bottom paddings/borders of its ancestors, their
+ * flex/grid row gaps and whatever is stacked underneath. Siblings beside the element (a sidebar)
+ * and out-of-flow ones (popovers) do not count.
+ */
+export function spaceBelow(element) {
+    let space = 0;
+    for (let node = element; node && node.parentElement && node !== document.body; node = node.parentElement) {
+        const parentStyle = getComputedStyle(node.parentElement);
+        const bottom = node.getBoundingClientRect().bottom;
+        space += parseFloat(getComputedStyle(node).marginBottom) || 0;
+        for (let sibling = node.nextElementSibling; sibling; sibling = sibling.nextElementSibling) {
+            const style = getComputedStyle(sibling);
+            if (style.display === 'none' || style.position === 'absolute' || style.position === 'fixed') continue;
+            const rect = sibling.getBoundingClientRect();
+            if (rect.height === 0 || rect.top < bottom - 1) continue;
+            space += rect.height + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0)
+                + (parseFloat(parentStyle.rowGap) || 0);
+        }
+        space += (parseFloat(parentStyle.paddingBottom) || 0) + (parseFloat(parentStyle.borderBottomWidth) || 0);
+    }
+    return space;
 }
 
 export function clampColumnWidth(width) {
@@ -789,6 +814,8 @@ export default function datagrid(config) {
             this.restoreColumnLayout();
             this.restoreSharedSearch();
             this.restoreUrlState();
+            this.fitHeight();
+            this.watchHeight();
             this.recomputePoolSize();
             this.recomputeColumnWindow();   // bound the skeleton's columns to the viewport too
             this.source = makeRowSource(this.config);
@@ -828,6 +855,7 @@ export default function datagrid(config) {
                 if (frame) return;
                 frame = requestAnimationFrame(() => {
                     frame = 0;
+                    this.fitHeight();
                     this.recomputePoolSize();
                     this.recomputeColumnWindow();
                     this.recomputePadding();
@@ -886,6 +914,39 @@ export default function datagrid(config) {
         refreshWindowRows() {
             this.firstIndex = this.firstIndex; // touch to re-run the getter (server block arrived)
             this.recomputePadding();
+        },
+
+        /**
+         * Size the scroller so the whole grid — toolbar, quick-filter / bulk bars, footer — ends at the
+         * bottom of the viewport. `config.height` (px) sets a fixed height instead.
+         */
+        fitHeight() {
+            const scroller = this.$refs.scroller;
+            if (!scroller) return;
+            if (typeof this.config.height === 'number') {
+                scroller.style.height = `${this.config.height}px`;
+                return;
+            }
+            const root = this.$el.getBoundingClientRect();
+            const current = scroller.getBoundingClientRect().height;
+            const chrome = root.height - current;
+            const target = Math.max(MIN_GRID_HEIGHT,
+                Math.floor(window.innerHeight - (root.top + window.scrollY) - chrome - spaceBelow(this.$el)));
+            if (Math.abs(target - current) < 1) return;
+            scroller.style.height = `${target}px`;
+            if (!this.source) return;
+            this.recomputePoolSize();
+            this.recomputePadding();
+            this.refreshWindowRows();
+        },
+        /** Bars appearing or disappearing (quick filters, bulk selection, wrapped chips) change the chrome. */
+        watchHeight() {
+            if (typeof ResizeObserver === 'undefined' || typeof this.config.height === 'number') return;
+            let frame = 0;
+            new ResizeObserver(() => {
+                if (frame) return;
+                frame = requestAnimationFrame(() => { frame = 0; this.fitHeight(); });
+            }).observe(this.$el);
         },
 
         recomputePoolSize() {
