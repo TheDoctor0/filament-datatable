@@ -30,7 +30,7 @@ return [
     'search_columns' => 'Szukaj kolumny…',
     'pin_column' => 'Przypnij kolumnę (zostaje widoczna przy przewijaniu)',
     'unpin_column' => 'Odepnij kolumnę',
-    'resize' => 'Przeciągnij, aby zmienić szerokość · dwuklik = auto',
+    'resize' => 'Przeciągnij, aby zmienić szerokość · dwuklik = dopasuj do zawartości',
     'quick_filters' => 'Szybkie filtry',
     'add_filter' => 'Dodaj filtr',
     'pin_to_bar' => 'Przypnij do szybkich filtrów',

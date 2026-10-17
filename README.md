@@ -34,7 +34,8 @@ the grid as plain row fields — see [Derived row fields](#derived-row-fields).
 - **Quick-filter bar** — chosen filters one click away above the grid; any filterable column can be added.
 - **Pinned columns + sticky actions** — pin columns to the left (sticky while scrolling sideways) and keep
   the actions column on the right edge.
-- **Column resize** — drag a header edge; widths persist with the layout.
+- **Column resize** — drag a header edge; double-click it to fit the column to its loaded content
+  (like Excel). Widths persist with the layout.
 - **Value labels** — map raw cell values (enum codes, ids) to display labels per column; used in cells,
   filter options and badges.
 - **Auto-fit column widths** — the widest rendered value per column is measured against the real cell
@@ -186,6 +187,8 @@ notification instead of downloading the error page.
 | `mono`        | bool              | Monospace cell font. |
 | `bold`        | bool              | Bold cell text. |
 | `off`         | bool              | Hidden by default in the column picker (can be enabled by the user). |
+| `link`        | string            | Row field holding a URL; when set on a row the cell renders as a link to it. |
+| `newTab`      | bool              | Open the `link` URL in a new tab. |
 | `width`       | number            | Explicit column width (px); disables auto-fit for this column. |
 | `minWidth`    | number            | Lower clamp for the auto-fit width. Defaults to `72` (`180` for editable columns). |
 | `maxWidth`    | number            | Upper clamp for the auto-fit width. Defaults to `460`. |

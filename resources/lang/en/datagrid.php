@@ -30,7 +30,7 @@ return [
     'search_columns' => 'Search columns…',
     'pin_column' => 'Pin column (stays visible while scrolling)',
     'unpin_column' => 'Unpin column',
-    'resize' => 'Drag to resize · double-click to auto-fit',
+    'resize' => 'Drag to resize · double-click to fit the content',
     'quick_filters' => 'Quick filters',
     'add_filter' => 'Add filter',
     'pin_to_bar' => 'Pin to quick filters',
