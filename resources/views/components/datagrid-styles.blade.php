@@ -190,6 +190,8 @@
     .rg-resizer{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;touch-action:none;z-index:4;}
     .rg-resizer::after{content:"";position:absolute;top:24%;bottom:24%;right:3px;width:2px;border-radius:2px;background:var(--rg-line);opacity:0;transition:opacity .1s;}
     .rg-th:hover .rg-resizer::after{opacity:1;}
+    .rg-resizer-start{right:auto;left:0;}
+    .rg-resizer-start::after{right:auto;left:3px;}
     .rg-resizer:hover::after{background:var(--rg-primary);opacity:1;}
     body.rg-resizing{cursor:col-resize!important;user-select:none;}
     .rg-link{color:var(--rg-primary);text-decoration:none;}

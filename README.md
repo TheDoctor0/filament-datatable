@@ -34,7 +34,7 @@ the grid as plain row fields — see [Derived row fields](#derived-row-fields).
 - **Quick-filter bar** — chosen filters one click away above the grid; any filterable column can be added.
 - **Pinned columns + sticky actions** — pin columns to the left (sticky while scrolling sideways) and keep
   the actions column on the right edge.
-- **Column resize** — drag a header edge; double-click it to fit the column to its loaded content
+- **Column resize** — drag a header edge (the actions column from its left edge); double-click it to fit the column to its loaded content
   (like Excel). Widths persist with the layout.
 - **Value labels** — map raw cell values (enum codes, ids) to display labels per column; used in cells,
   filter options and badges.

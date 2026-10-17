@@ -17,6 +17,7 @@ export const ROW_HEIGHT = 42; // px — fixed height is what makes scroll→inde
 export const OVERSCAN_ROWS = 4; // rows rendered above/below the viewport as a buffer
 export const OVERSCAN_COLUMNS = 2; // columns rendered left/right of the viewport as a buffer
 export const CHECKBOX_COLUMN_WIDTH = 44;
+export const ACTIONS_KEY = '_actions'; // userWidths key of the actions column
 export const MIN_COLUMN_WIDTH = 56; // user drag-resize clamp
 export const MAX_COLUMN_WIDTH = 900;
 export const PIN_MIN_VIEWPORT = 640; // below this pinned columns/actions scroll normally (phones)
@@ -759,7 +760,8 @@ export default function datagrid(config) {
         // ---- misc config-derived ----
         rowActions: config.rowActions || null,
         rowUrl: config.rowUrl || null,   // optional ':id' template — clicking a row opens it
-        actionsColumnWidth: config.actionsColumnWidth || 370,
+        actionsAutoWidth: config.actionsColumnWidth || 370,  // measured (or configured) actions width
+        get actionsColumnWidth() { return this.userWidths[ACTIONS_KEY] || this.actionsAutoWidth; },
         rowHighlight: config.rowHighlight || null,   // {field, class?} — truthy row[field] adds the class
         locale: config.locale || DEFAULT_LOCALE,
         // Akcje masowe = akcje Filamenta montowane z paska zaznaczenia (modal/formularz po stronie app).
@@ -1110,7 +1112,7 @@ export default function datagrid(config) {
                 widths[column.k] = this.measureColumn(column, rows, false);
             }
             this._contentWidths = widths;
-            if (!this.config.actionsColumnWidth && this.rowActions) this.actionsColumnWidth = this.measureActions(rows);
+            if (!this.config.actionsColumnWidth && this.rowActions) this.actionsAutoWidth = this.measureActions(rows);
             this.invalidateLayout(); // the cached width array + pinned offsets must pick up the fit
         },
 
@@ -1255,7 +1257,11 @@ export default function datagrid(config) {
          * the layout). Pointer capture keeps the drag alive outside the handle; updates are batched
          * per animation frame. Double-click the edge to fit the column to its loaded content.
          */
-        startResize(column, event) {
+        /** The actions column sits at the right edge, so it is resized from its left edge. */
+        startActionsResize(event) {
+            this.startResize({ k: ACTIONS_KEY }, event, -1);
+        },
+        startResize(column, event, direction = 1) {
             // Detect the double-click here: the drag's pointer capture can swallow a native dblclick.
             const now = Date.now();
             const last = this._lastResizeDown;
@@ -1267,14 +1273,14 @@ export default function datagrid(config) {
             }
             const handle = event.currentTarget;
             const startX = event.clientX;
-            const startWidth = this.columnWidth(column);
+            const startWidth = column.k === ACTIONS_KEY ? this.actionsColumnWidth : this.columnWidth(column);
             let frame = 0;
             let width = startWidth;
             try { handle.setPointerCapture(event.pointerId); } catch (error) { /* synthetic event */ }
             document.body.classList.add('rg-resizing');
 
             const move = (moveEvent) => {
-                width = clampColumnWidth(startWidth + moveEvent.clientX - startX);
+                width = clampColumnWidth(startWidth + direction * (moveEvent.clientX - startX));
                 if (frame) return;
                 frame = requestAnimationFrame(() => {
                     frame = 0;
@@ -1301,7 +1307,8 @@ export default function datagrid(config) {
         fitColumn(column) {
             const rows = this.source.sampleRows();
             if (!rows || rows.length === 0) return;
-            this.userWidths = { ...this.userWidths, [column.k]: this.measureColumn(column, rows, true) };
+            const width = column.k === ACTIONS_KEY ? this.measureActions(rows) : this.measureColumn(column, rows, true);
+            this.userWidths = { ...this.userWidths, [column.k]: width };
             this.onColumnsChanged();
         },
         resetWidth(key) {
@@ -1333,7 +1340,7 @@ export default function datagrid(config) {
                 this.stickyActions = layout.a;
                 if (saved.w && typeof saved.w === 'object') {
                     const widths = {};
-                    for (const key in saved.w) if (known.includes(key)) widths[key] = clampColumnWidth(saved.w[key]);
+                    for (const key in saved.w) if (known.includes(key) || key === ACTIONS_KEY) widths[key] = clampColumnWidth(saved.w[key]);
                     this.userWidths = widths;
                 }
                 if (this.quickFiltersEnabled && Array.isArray(saved.q)) {

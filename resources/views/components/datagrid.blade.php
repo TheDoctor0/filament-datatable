@@ -211,7 +211,11 @@
                                 </template>
                             </th>
                         </template>
-                        <th class="rg-th rg-acts-th" :class="stickyActions && 'rg-stick rg-acts-pin'" x-show="rowActions">{{ __('filament-datatable::datagrid.actions') }}</th>
+                        <th class="rg-th rg-acts-th" :class="stickyActions && 'rg-stick rg-acts-pin'" x-show="rowActions">
+                            <span class="rg-resizer rg-resizer-start" x-show="resizable" title="{{ __('filament-datatable::datagrid.resize') }}"
+                                  @pointerdown.stop.prevent="startActionsResize($event)" @click.stop></span>
+                            {{ __('filament-datatable::datagrid.actions') }}
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
