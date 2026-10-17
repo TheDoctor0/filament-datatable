@@ -97,6 +97,15 @@
                                 </span>
                             </label>
                         </template>
+                        {{-- Actions column: always shown and always last — only its pin can change. --}}
+                        <div class="ls-opt rg-colrow rg-colrow-fixed" x-show="rowActions && columnMatchesSearch({ k: '_actions', t: @js(__('filament-datatable::datagrid.actions')) })">
+                            <input type="checkbox" class="fi-checkbox-input" checked disabled>
+                            <span class="rg-colrow-label">{{ __('filament-datatable::datagrid.actions') }}</span>
+                            <button type="button" class="rg-pinbtn" :class="stickyActions && 'on'" x-html="icons.pin"
+                                    :title="stickyActions ? @js(__('filament-datatable::datagrid.unpin_column')) : @js(__('filament-datatable::datagrid.pin_column'))"
+                                    @click.stop.prevent="toggleStickyActions()"></button>
+                            <span class="rg-drag rg-drag-off" aria-hidden="true"></span>
+                        </div>
                     </div>
                 </div>
             </div>

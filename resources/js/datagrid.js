@@ -190,6 +190,7 @@ export function layoutDefaults(config) {
         o: config.columns.map((column) => column.k),
         v: config.columns.filter((column) => !column.off).map((column) => column.k),
         f: [...(config.frozen || [])],
+        a: !!config.stickyActions,
     };
 }
 
@@ -205,11 +206,13 @@ export function mergeColumnLayout(saved, config) {
     // Visibility and pins are sets — only the order part compares in sequence.
     const sig = (part, keys) => JSON.stringify(part === 'o' ? keys : [...(keys || [])].sort());
     const keep = (part) => Array.isArray(saved[part]) && saved.d && sig(part, saved.d[part]) === sig(part, defaults[part]);
+    const keepActions = typeof saved.a === 'boolean' && saved.d && saved.d.a === defaults.a;
     const order = keep('o') ? saved.o.filter((key) => known.includes(key)) : [...known];
     return {
         o: order.concat(known.filter((key) => !order.includes(key))),
         v: keep('v') ? saved.v.filter((key) => known.includes(key)) : defaults.v,
         f: keep('f') ? saved.f.filter((key) => known.includes(key)) : defaults.f,
+        a: keepActions ? saved.a : defaults.a,
     };
 }
 
@@ -1215,6 +1218,7 @@ export default function datagrid(config) {
             this.visibleKeys = this.config.columns.filter((column) => !column.off).map((column) => column.k);
             this.frozenKeys = [...(this.config.frozen || [])];
             this.userWidths = {};
+            this.stickyActions = !!this.config.stickyActions;
             this.onColumnsChanged();
         },
         /** Pin / unpin a column; a pinned column is always shown. */
@@ -1228,6 +1232,11 @@ export default function datagrid(config) {
             this.onColumnsChanged();
         },
         isPinned(key) { return this.frozenKeys.includes(key); },
+        /** Pin / unpin the actions column to the right edge (it cannot be hidden or moved). */
+        toggleStickyActions() {
+            this.stickyActions = !this.stickyActions;
+            this.onColumnsChanged();
+        },
         /** Column picker search (#columns with long lists). */
         columnMatchesSearch(column) {
             const needle = this.columnSearch.trim().toLowerCase();
@@ -1308,7 +1317,7 @@ export default function datagrid(config) {
             try {
                 localStorage.setItem(key, JSON.stringify({
                     v: this.visibleKeys, o: this.columnOrder, f: this.frozenKeys, w: this.userWidths, q: this.quickKeys,
-                    d: layoutDefaults(this.config),
+                    a: this.stickyActions, d: layoutDefaults(this.config),
                 }));
             } catch (error) { /* */ }
         },
@@ -1321,6 +1330,7 @@ export default function datagrid(config) {
                 this.columnOrder = layout.o;
                 this.visibleKeys = layout.v;
                 this.frozenKeys = layout.f;
+                this.stickyActions = layout.a;
                 if (saved.w && typeof saved.w === 'object') {
                     const widths = {};
                     for (const key in saved.w) if (known.includes(key)) widths[key] = clampColumnWidth(saved.w[key]);

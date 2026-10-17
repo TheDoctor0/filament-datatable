@@ -147,6 +147,7 @@
     .rg-colrow{justify-content:flex-start;gap:10px;border-radius:7px;padding:5px 6px;}
     .rg-colrow:hover{background:var(--rg-hover);}
     .rg-colrow.rg-dragging{opacity:.5;}
+    .rg-drag-off{visibility:hidden;width:15px;}
     .rg-drag{color:var(--rg-muted);cursor:grab;display:inline-flex;}
     .rg-fpop{position:fixed;}
     .ls-pop input[type=text],.ls-pop input[type=date],.ls-pop input[type=number],.ls-pop input[type=datetime-local]{width:100%;box-sizing:border-box;border:1px solid var(--rg-line);
