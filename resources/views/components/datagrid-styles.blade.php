@@ -86,7 +86,7 @@
     :where(.dark) .rg-lvl-1 td{background:var(--rg-lvl1,rgba(255,255,255,.03));}
     :where(.dark) .rg-lvl-2 td{background:var(--rg-lvl2,rgba(56,189,248,.06));}
     .rg-row.rg-lvl-1:hover td,.rg-row.rg-lvl-2:hover td{background:var(--rg-hover);}
-    .rg-edit .fi-ta-text-input{padding:0;display:flex;align-items:center;height:42px;min-width:0;}
+    .rg-edit .fi-ta-text-input{padding:0;display:flex;align-items:center;height:41px;min-width:0;} /* row 42 = 41 + 1px border */
     .rg-edit .fi-input-wrp{min-height:0!important;height:30px!important;width:100%;max-width:100%;}
     .rg-edit .fi-input{width:100%;min-width:0;height:30px!important;padding:2px 8px;font-size:13px;line-height:1.2;}
     .rg-bold{font-weight:700;}
