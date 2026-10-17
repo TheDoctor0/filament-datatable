@@ -1130,9 +1130,9 @@ export default function datagrid(config) {
 
             const CELL_PADDING = 24;        // .rg-td left+right padding
             const HEADER_PADDING = 24;      // .rg-th left+right padding
-            const SORT_ICON = 24;           // sort chevron + its gap (always present)
-            const FUNNEL_ICON = 22;         // filter funnel (only on filterable columns)
-            const HEADER_GAPS = 6;          // flex gaps between label, sort chevron and funnel
+            const SORT_ICON = 23;           // sort chevron (20) + its gap (3), always present
+            const FUNNEL_ICON = 18;         // filter funnel (17) + its margin, only on filterable columns
+            const HEADER_GAPS = 2;          // flex gap before the funnel + rounding slack
             const COMPACT_LABEL = 56;       // compactHeaders: minimum visible label width
             const TREE_TOGGLE = 26;         // chevron + gap in front of a tree cell
             const TAG_PADDING = 28;         // badge padding + border + gap after the text
