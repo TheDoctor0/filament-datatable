@@ -33,7 +33,7 @@ return [
     'resize' => 'Przeciągnij, aby zmienić szerokość · dwuklik = dopasuj do zawartości',
     'quick_filters' => 'Szybkie filtry',
     'add_filter' => 'Dodaj filtr',
-    'pin_to_bar' => 'Przypnij do szybkich filtrów',
+    'pin_to_bar' => 'Dodaj do szybkich filtrów',
     'unpin_from_bar' => 'Usuń z szybkich filtrów',
     'values' => 'Wartości',
     'range' => 'Zakres',

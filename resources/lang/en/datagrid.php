@@ -33,7 +33,7 @@ return [
     'resize' => 'Drag to resize · double-click to fit the content',
     'quick_filters' => 'Quick filters',
     'add_filter' => 'Add filter',
-    'pin_to_bar' => 'Pin to quick filters',
+    'pin_to_bar' => 'Add to quick filters',
     'unpin_from_bar' => 'Remove from quick filters',
     'values' => 'Values',
     'range' => 'Range',

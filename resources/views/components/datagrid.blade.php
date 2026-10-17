@@ -407,7 +407,9 @@
         </div>
         <template x-if="quickFiltersEnabled && filterColumn">
             <button type="button" class="rg-qpin" @click="toggleQuickFilter(filterColumn.k)">
-                <span x-html="icons.pin"></span>
+                {{-- Plus / minus, not the pin: the pin icon means pinning a column. --}}
+                <svg x-show="!quickKeys.includes(filterColumn.k)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+                <svg x-show="quickKeys.includes(filterColumn.k)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
                 <span x-text="quickKeys.includes(filterColumn.k) ? @js(__('filament-datatable::datagrid.unpin_from_bar')) : @js(__('filament-datatable::datagrid.pin_to_bar'))"></span>
             </button>
         </template>
