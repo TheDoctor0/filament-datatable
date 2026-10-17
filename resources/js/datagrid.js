@@ -68,14 +68,39 @@ export function escapeHtml(value) {
 
 export const DEFAULT_LOCALE = 'en-US';
 
+// One Intl.NumberFormat per locale: Number#toLocaleString builds a new formatter on every call,
+// which dominates the auto-fit pass over thousands of numeric cells.
+const NUMBER_FORMATS = new Map();
+function numberFormat(locale) {
+    let format = NUMBER_FORMATS.get(locale);
+    if (!format) NUMBER_FORMATS.set(locale, (format = new Intl.NumberFormat(locale)));
+    return format;
+}
+
 /** Locale number formatting, trimmed to 2 decimals. */
 export function formatNumber(value, locale = DEFAULT_LOCALE) {
     const rounded = Math.round((Number(value) || 0) * 100) / 100;
-    return rounded.toLocaleString(locale);
+    return numberFormat(locale).format(rounded);
 }
 
 export function formatInteger(value, locale = DEFAULT_LOCALE) {
-    return Math.round(Number(value) || 0).toLocaleString(locale);
+    return numberFormat(locale).format(Math.round(Number(value) || 0));
+}
+
+/**
+ * Keep an object out of Alpine's reactivity (Vue's markRaw flag). The row source holds every
+ * loaded row; behind a reactive proxy each property read in sort / filter / measure loops pays
+ * a proxy trap. Bindings that depend on the source re-evaluate through explicit counters instead.
+ */
+export function markNonReactive(value) {
+    if (value && typeof value === 'object') Object.defineProperty(value, '__v_skip', { value: true, configurable: true });
+    return value;
+}
+
+/** The plain object behind an Alpine reactive proxy (for hot loops); the value itself outside Alpine. */
+function plain(value) {
+    const alpine = globalThis.Alpine;
+    return alpine && typeof alpine.raw === 'function' ? alpine.raw(value) : value;
 }
 
 /** "2026-01-26T14:51:03" | "2026-01-26 14:51:03" → "2026-01-26 14:51" */
@@ -770,7 +795,8 @@ export default function datagrid(config) {
         leftColSpacer: 0,
         rightColSpacer: 0,
         _columnWidths: null,
-        _contentWidths: null,   // measured auto-fit widths per column key
+        _contentWidths: null,   // measured auto-fit widths per column key (non-reactive)
+        _measureRows: null,     // rows the auto-fit measured — reused for columns measured later
         _measureCtx: null,
         _lastResizeDown: null,  // {key, at} of the previous pointerdown on a resize handle
         _lastScrollLeft: -1,
@@ -818,7 +844,7 @@ export default function datagrid(config) {
             this.watchHeight();
             this.recomputePoolSize();
             this.recomputeColumnWindow();   // bound the skeleton's columns to the viewport too
-            this.source = makeRowSource(this.config);
+            this.source = markNonReactive(makeRowSource(this.config));
             if (this.source.onWindowLoaded !== undefined) {
                 this.source.onWindowLoaded = () => this.refreshWindowRows();
             }
@@ -1147,7 +1173,13 @@ export default function datagrid(config) {
         columnWidth(column) {
             if (this.userWidths[column.k]) return this.userWidths[column.k];
             if (column.width) return column.width;
-            if (this._contentWidths && this._contentWidths[column.k] != null) return this._contentWidths[column.k];
+            if (this._contentWidths) {
+                // Hidden columns are measured lazily, the first time they are laid out.
+                if (this._contentWidths[column.k] == null && this._measureRows) {
+                    this._contentWidths[column.k] = this.measureColumn(column, this._measureRows, false);
+                }
+                return this._contentWidths[column.k];
+            }
             return this.heuristicWidth(column);
         },
         heuristicWidth(column) {
@@ -1169,11 +1201,15 @@ export default function datagrid(config) {
         computeContentWidths() {
             const rows = this.source.loadedRows() ?? (this._contentWidths ? null : this.source.sampleRows());
             if (!rows || rows.length === 0) return;
-            const widths = {};
-            for (const column of this.config.columns) {
-                if (column.width) continue;
-                widths[column.k] = this.measureColumn(column, rows, false);
+            const fonts = this.measureFonts();
+            // Only the columns on screen are measured up front; the rest when first shown (columnWidth).
+            const shown = new Set([...this.visibleKeys, ...this.frozenKeys]);
+            const widths = markNonReactive({});
+            for (const column of plain(this.config.columns)) {
+                if (column.width || !shown.has(column.k)) continue;
+                widths[column.k] = this.measureColumn(column, rows, false, fonts);
             }
+            this._measureRows = markNonReactive(rows);
             this._contentWidths = widths;
             if (!this.config.actionsColumnWidth && this.rowActions) this.actionsAutoWidth = this.measureActions(rows);
             this.invalidateLayout(); // the cached width array + pinned offsets must pick up the fit
@@ -1183,17 +1219,10 @@ export default function datagrid(config) {
          * Width that fits the widest rendered value (and the header) of a column. `exact` skips the
          * min/max clamps — used by the double-click fit, which should match the content like Excel.
          */
-        measureColumn(column, rows, exact) {
-            const table = this.$refs.scroller && this.$refs.scroller.querySelector('.rg-table');
-            const baseFont = table
-                ? `${getComputedStyle(table).fontSize} ${getComputedStyle(table).fontFamily}`
-                : '13px sans-serif';
-            const monoFont = '12.5px ui-monospace, Menlo, monospace';
-            // Header labels are bold — measure them with the real header font, taken from a rendered <th>.
-            const labelEl = this.$el.querySelector('.rg-th .rg-th-label');
-            const headerFont = labelEl
-                ? (() => { const s = getComputedStyle(labelEl); return `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`; })()
-                : `600 ${baseFont}`;
+        measureColumn(column, rows, exact, fonts = this.measureFonts()) {
+            column = plain(column);
+            rows = plain(rows);
+            const { baseFont, monoFont, headerFont } = fonts;
             const ctx = this._measureCtx || (this._measureCtx = document.createElement('canvas').getContext('2d'));
 
             const CELL_PADDING = 24;        // .rg-td left+right padding
@@ -1209,6 +1238,7 @@ export default function datagrid(config) {
 
             ctx.font = column.mono ? monoFont : baseFont;
             let cellWidth = 0;
+            const measured = new Set(); // a repeated value has the same width — measure it once
             for (let i = 0; i < rows.length; i += step) {
                 const row = rows[i];
                 if (!row) continue;
@@ -1216,6 +1246,11 @@ export default function datagrid(config) {
                     ? String(row[column.k] ?? column.placeholder ?? '')
                     : this.computeCell(row, column).text;
                 const tag = this.cellTag(column, row);
+                if (!tree) {
+                    const key = tag ? `${text}\u0000${tag.text}` : text;
+                    if (measured.has(key)) continue;
+                    measured.add(key);
+                }
                 const width = ctx.measureText(text).width + (tree ? this.treeIndent(row) + TREE_TOGGLE : 0)
                     + (tag ? ctx.measureText(tag.text).width + TAG_PADDING : 0);
                 if (width > cellWidth) cellWidth = width;
@@ -1233,6 +1268,21 @@ export default function datagrid(config) {
             const min = column.minWidth || (column.edit ? 180 : 72);
             const max = column.maxWidth || 460;
             return Math.round(Math.min(max, Math.max(min, fit)));
+        },
+
+        /** Cell, monospace and (bold) header fonts the auto-fit measures with — read from the rendered table. */
+        measureFonts() {
+            const table = this.$refs.scroller && this.$refs.scroller.querySelector('.rg-table');
+            const tableStyle = table ? getComputedStyle(table) : null;
+            const baseFont = tableStyle ? `${tableStyle.fontSize} ${tableStyle.fontFamily}` : '13px sans-serif';
+            // Header labels are bold — measure them with the real header font, taken from a rendered <th>.
+            const labelEl = this.$el.querySelector('.rg-th .rg-th-label');
+            const labelStyle = labelEl ? getComputedStyle(labelEl) : null;
+            return {
+                baseFont,
+                monoFont: '12.5px ui-monospace, Menlo, monospace',
+                headerFont: labelStyle ? `${labelStyle.fontWeight} ${labelStyle.fontSize} ${labelStyle.fontFamily}` : `600 ${baseFont}`,
+            };
         },
 
         /** Actions column width: the widest set of buttons any measured row shows (all actions without rows). */

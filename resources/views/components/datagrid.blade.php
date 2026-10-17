@@ -16,7 +16,7 @@
     x-on:rg-refresh.window="reload()"
     x-on:rg-clear-selection.window="clearSelection()"
     class="rg fi-ta"
-    :class="{ 'rg-pin': pinActive, 'rg-scrolled': scrolledX }"
+    :class="{ 'rg-pin': pinActive && !loading, 'rg-scrolled': scrolledX }"
 >
     <div class="rg-card">
         {{-- Toolbar: search + active filters (left) + column manager (right) --}}
