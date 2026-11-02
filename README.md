@@ -160,6 +160,7 @@ notification instead of downloading the error page.
 | `urlState`           | `true` \| `{prefix}` | Mirror search (`q`), sort (`sort=key:dir`) and column filters (`f`, JSON) in the query string. `prefix` namespaces the params when a page has several grids. |
 | `frozen`             | `string[]`        | Column keys pinned to the left by default. Pinned columns stay visible (sticky) while scrolling sideways; users pin/unpin any column in the column picker. Persisted with the layout. |
 | `height`             | number            | Fixed scroller height (px). By default the grid fills the viewport: the scroller is sized so the toolbar, quick-filter / bulk bars and footer end at the bottom of the page, and it re-fits when a bar appears or the window resizes (never below 280 px). |
+| `actionsIconOnly`    | bool              | Render row actions as icon buttons (tinted background and border in the action's colour) with the label in a tooltip. Actions need an `icon`. Defaults to `false`. |
 | `stickyActions`      | bool              | Keep the row-actions column stuck to the right edge by default. Users can pin / unpin it in the column picker (it cannot be hidden or moved). Defaults to `false`. |
 | `pinMinViewport`     | number            | Below this viewport width (px) pinned columns and sticky actions scroll normally. Defaults to `640`. |
 | `resizable`          | bool              | Users can drag a header's right edge to resize a column (double-click = back to auto-fit). Widths are persisted with the layout. Defaults to `true`. |
@@ -206,7 +207,7 @@ Badge colours: `info`, `success`, `warning`, `danger`, `gray`, `primary`, `purpl
 | -------- | ------ | ----------- |
 | `name`   | string | Action identifier; when there is no `url`, this is passed to the Filament action mount. |
 | `label`  | string | Button/link text. |
-| `color`  | string | Colour token, applied as the CSS class `rg-act-{color}` (`primary`, `gray`, `warning`, `danger`). |
+| `color`  | string | Colour token, applied as the CSS class `rg-act-{color}` (`primary`, `gray`, `warning`, `danger`, `success`, `info`, `purple`). |
 | `icon`   | string | Built-in icon: `eye`, `document`, `pencil`, `clock`, `arrow-right-circle`, `minus-circle`, `arrow-uturn-left`. Optional. |
 | `url`    | string | Optional `:id` template. If present the action renders as a link; if absent it renders as a button. |
 | `newTab` | bool   | Open the link in a new tab. |

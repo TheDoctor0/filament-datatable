@@ -307,12 +307,16 @@
                                     <template x-for="action in (row ? actionsFor(row) : [])" :key="action.name">
                                         <span>
                                             <a x-show="action.url" :href="action.url ? action.url.replace(':id', row.id) : '#'"
-                                               :target="action.newTab ? '_blank' : '_self'" @click.stop class="rg-actbtn" :class="`rg-act-${action.color}`">
-                                                <span class="rg-actico" x-html="actionIcon(action)"></span><span x-text="action.label"></span>
+                                               :target="action.newTab ? '_blank' : '_self'" @click.stop class="rg-actbtn"
+                                               :class="[`rg-act-${action.color}`, actionsIconOnly && 'rg-actbtn-icon']"
+                                               :title="actionsIconOnly ? action.label : null" :aria-label="action.label">
+                                                <span class="rg-actico" x-html="actionIcon(action)"></span><span x-show="!actionsIconOnly" x-text="action.label"></span>
                                             </a>
-                                            <button x-show="!action.url" type="button" class="rg-actbtn" :class="`rg-act-${action.color}`"
+                                            <button x-show="!action.url" type="button" class="rg-actbtn"
+                                                    :class="[`rg-act-${action.color}`, actionsIconOnly && 'rg-actbtn-icon']"
+                                                    :title="actionsIconOnly ? action.label : null" :aria-label="action.label"
                                                     @click.stop="mountAction(action.name, row.id)">
-                                                <span class="rg-actico" x-html="actionIcon(action)"></span><span x-text="action.label"></span>
+                                                <span class="rg-actico" x-html="actionIcon(action)"></span><span x-show="!actionsIconOnly" x-text="action.label"></span>
                                             </button>
                                         </span>
                                     </template>

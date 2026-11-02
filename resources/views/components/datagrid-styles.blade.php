@@ -125,6 +125,17 @@
     .rg-act-danger:hover{color:var(--rg-neg);background:color-mix(in srgb,var(--rg-neg) 12%,transparent);}
     .rg-act-warning{color:#b45309;}
     .rg-act-warning:hover{color:#b45309;background:color-mix(in srgb,#b45309 12%,transparent);}
+    .rg-act-success{color:#15803d;}
+    .rg-act-success:hover{color:#15803d;background:color-mix(in srgb,#15803d 12%,transparent);}
+    .rg-act-info{color:#0369a1;}
+    .rg-act-info:hover{color:#0369a1;background:color-mix(in srgb,#0369a1 12%,transparent);}
+    .rg-act-purple{color:#7c3aed;}
+    .rg-act-purple:hover{color:#7c3aed;background:color-mix(in srgb,#7c3aed 12%,transparent);}
+    /* Icon-only row actions (actionsIconOnly): tinted square button in the action's colour, label in the tooltip. */
+    .rg-actbtn-icon{padding:6px;border:1px solid color-mix(in srgb,currentColor 35%,transparent);
+        background:color-mix(in srgb,currentColor 9%,transparent);}
+    .rg-actbtn-icon:hover{background:color-mix(in srgb,currentColor 18%,transparent);border-color:currentColor;}
+    .rg-act-gray.rg-actbtn-icon:hover{color:var(--rg-fg);}
     .rg-footbar{background:var(--rg-head);color:var(--rg-fg);font-weight:600;font-size:13px;
         padding:10px 14px;border-top:1px solid var(--rg-line);}
     .rg-footbar b{font-variant-numeric:tabular-nums;color:var(--rg-primary);}

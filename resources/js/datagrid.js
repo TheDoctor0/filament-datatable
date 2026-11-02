@@ -784,6 +784,7 @@ export default function datagrid(config) {
         userWidths: {},                          // key → px, set by dragging a header edge
         resizable: config.resizable !== false,
         stickyActions: !!config.stickyActions,   // actions column pinned to the right edge
+        actionsIconOnly: !!config.actionsIconOnly, // row actions as icon buttons, label in the tooltip
         pinActive: true,                         // false on narrow viewports: pinned parts scroll normally
         scrolledX: false,                        // drives the shadow under the pinned edge
 
@@ -1306,9 +1307,11 @@ export default function datagrid(config) {
             const ctx = this._measureCtx || (this._measureCtx = document.createElement('canvas').getContext('2d'));
             ctx.font = `500 12.5px ${family}`;
             const BUTTON = 6 + 14 + 5 + 6;  // padding + icon + gap + padding
+            const ICON_BUTTON = 1 + 6 + 14 + 6 + 1;  // border + padding + icon + padding + border
             const GAP = 6;                  // .rg-acts-in gap
             const CELL_PADDING = 24;
-            const setWidth = (actions) => actions.reduce((sum, action) => sum + ctx.measureText(action.label).width + BUTTON, 0)
+            const buttonWidth = (action) => this.actionsIconOnly ? ICON_BUTTON : ctx.measureText(action.label).width + BUTTON;
+            const setWidth = (actions) => actions.reduce((sum, action) => sum + buttonWidth(action), 0)
                 + Math.max(0, actions.length - 1) * GAP;
             let widest = 0;
             const step = Math.max(1, Math.floor(rows.length / 2000));
