@@ -208,7 +208,7 @@ Badge colours: `info`, `success`, `warning`, `danger`, `gray`, `primary`, `purpl
 | `name`   | string | Action identifier; when there is no `url`, this is passed to the Filament action mount. |
 | `label`  | string | Button/link text. |
 | `color`  | string | Colour token, applied as the CSS class `rg-act-{color}` (`primary`, `gray`, `warning`, `danger`, `success`, `info`, `purple`). |
-| `icon`   | string | Built-in icon: `eye`, `document`, `pencil`, `clock`, `arrow-right-circle`, `minus-circle`, `arrow-uturn-left`. Optional. |
+| `icon`   | string | Built-in icon: `eye`, `document`, `pencil`, `clock`, `arrow-right-circle`, `minus-circle`, `arrow-uturn-left`, `chart-line`. Optional. |
 | `url`    | string | Optional `:id` template. If present the action renders as a link; if absent it renders as a button. |
 | `newTab` | bool   | Open the link in a new tab. |
 | `when`   | string | Row field name; the action is shown only when `row[when]` is truthy. Omit to always show it. |

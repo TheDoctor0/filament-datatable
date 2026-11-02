@@ -743,6 +743,7 @@ export const ACTION_ICONS = {
     pencil: actionIconSvg('<path d="M16.5 3.5 20.5 7.5 8 20H4v-4z"/><path d="M13.5 6.5 17.5 10.5"/>'),
     eye: actionIconSvg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'),
     document: actionIconSvg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'),
+    'chart-line': actionIconSvg('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-6"/>'),
 };
 
 /* ------------------------------------------------------------------ *
